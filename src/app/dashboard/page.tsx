@@ -102,6 +102,9 @@ export default async function DashboardPage() {
           </div>
           <div className="flex flex-col items-end gap-2">
             <SyncBadge lastSync={lastSync as SyncLog | null} />
+            <Link href="/dashboard/schedina" className="font-mono text-xs text-text-secondary underline">
+              schedina virtuale
+            </Link>
             {profile?.role === 'admin' && (
               <Link href="/dashboard/admin" className="font-mono text-xs text-text-secondary underline">
                 pannello admin
