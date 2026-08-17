@@ -108,6 +108,9 @@ export default async function DashboardPage() {
             <Link href="/dashboard/backtest" className="font-mono text-xs text-text-secondary underline">
               backtesting
             </Link>
+            <Link href="/dashboard/ratings" className="font-mono text-xs text-text-secondary underline">
+              power ranking
+            </Link>
             {profile?.role === 'admin' && (
               <Link href="/dashboard/admin" className="font-mono text-xs text-text-secondary underline">
                 pannello admin

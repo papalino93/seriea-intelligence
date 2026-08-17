@@ -47,6 +47,8 @@ type ValueSignal = {
 // statistico del modello, non segnalare ogni minima differenza come opportunità.
 const VALUE_EDGE_THRESHOLD = 0.03
 
+type OddsHistoryRow = { outcome: 'home' | 'draw' | 'away'; value: number; created_at: string }
+
 type Scorer = { name: string; goals: number; played_matches: number }
 
 type FormMatch = {
@@ -84,6 +86,12 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
     .order('computed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  const { data: oddsHistoryRaw } = await supabase
+    .from('odds')
+    .select('outcome, value, created_at')
+    .eq('match_id', id)
+    .order('created_at', { ascending: true })
 
   const { data: valueSignals } = await supabase
     .from('value_signals')
@@ -174,6 +182,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
+        <OddsHistorySection rows={(oddsHistoryRaw as OddsHistoryRow[] | null) ?? []} />
+
         {valueSignals && valueSignals.length > 0 && (
           <ValueSection signals={valueSignals as unknown as ValueSignal[]} />
         )}
@@ -215,6 +225,85 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </p>
       </div>
     </main>
+  )
+}
+
+const OUTCOME_COLOR: Record<OddsHistoryRow['outcome'], string> = {
+  home: '#3FA66B', // accent-pitch
+  draw: '#C9A24B', // accent-gold
+  away: '#C1584B', // accent-danger
+}
+const OUTCOME_SHORT: Record<OddsHistoryRow['outcome'], string> = { home: '1', draw: 'X', away: '2' }
+
+/**
+ * Andamento quote nel tempo (documento di progettazione: "storico variazioni
+ * quota" / grafico andamento). Per ogni outcome, prende la quota MIGLIORE tra
+ * i bookmaker a ogni timestamp di sync distinto — SVG inline, niente libreria
+ * di grafici aggiuntiva per un solo sparkline a 3 linee.
+ */
+function OddsHistorySection({ rows }: { rows: OddsHistoryRow[] }) {
+  if (rows.length < 2) return null // serve almeno 2 punti per un "andamento"
+
+  const byOutcome: Record<OddsHistoryRow['outcome'], { t: number; v: number }[]> = { home: [], draw: [], away: [] }
+  const byTimestampOutcome = new Map<string, number>() // "ts:outcome" -> valore migliore a quel timestamp
+  for (const r of rows) {
+    const key = `${r.created_at}:${r.outcome}`
+    byTimestampOutcome.set(key, Math.max(byTimestampOutcome.get(key) ?? 0, r.value))
+  }
+  for (const [key, value] of byTimestampOutcome) {
+    const [ts, outcome] = key.split(':') as [string, OddsHistoryRow['outcome']]
+    byOutcome[outcome].push({ t: new Date(ts).getTime(), v: value })
+  }
+  for (const outcome of Object.keys(byOutcome) as OddsHistoryRow['outcome'][]) {
+    byOutcome[outcome].sort((a, b) => a.t - b.t)
+  }
+
+  const allValues = rows.map((r) => r.value)
+  const allTimes = rows.map((r) => new Date(r.created_at).getTime())
+  const minV = Math.min(...allValues)
+  const maxV = Math.max(...allValues)
+  const minT = Math.min(...allTimes)
+  const maxT = Math.max(...allTimes)
+  const width = 320
+  const height = 120
+  const pad = 8
+
+  function toXY(point: { t: number; v: number }) {
+    const x = pad + ((point.t - minT) / Math.max(maxT - minT, 1)) * (width - 2 * pad)
+    const y = height - pad - ((point.v - minV) / Math.max(maxV - minV, 1)) * (height - 2 * pad)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }
+
+  return (
+    <div className="mt-8">
+      <h2 className="font-display text-sm text-text-secondary">Andamento quote (migliore per esito)</h2>
+      <div className="mt-3 rounded-lg border border-border bg-surface p-4">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ maxHeight: 160 }}>
+          {(['home', 'draw', 'away'] as const).map((outcome) =>
+            byOutcome[outcome].length >= 2 ? (
+              <polyline
+                key={outcome}
+                points={byOutcome[outcome].map(toXY).join(' ')}
+                fill="none"
+                stroke={OUTCOME_COLOR[outcome]}
+                strokeWidth={2}
+              />
+            ) : null
+          )}
+        </svg>
+        <div className="mt-2 flex gap-4 font-mono text-xs">
+          {(['home', 'draw', 'away'] as const).map((outcome) => (
+            <span key={outcome} style={{ color: OUTCOME_COLOR[outcome] }}>
+              ● {OUTCOME_SHORT[outcome]}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="mt-2 font-mono text-xs text-text-secondary">
+        Ogni punto è la quota migliore disponibile tra i bookmaker monitorati al momento di ogni
+        sincronizzazione — non in tempo reale, solo agli orari in cui abbiamo aggiornato i dati.
+      </p>
+    </div>
   )
 }
 

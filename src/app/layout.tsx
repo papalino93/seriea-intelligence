@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Space_Grotesk, Inter, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 
@@ -17,6 +17,11 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: 'Serie A Intelligence',
   description: 'Dashboard privata di analisi Serie A',
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Serie A Intel' },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0A0F0C',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
