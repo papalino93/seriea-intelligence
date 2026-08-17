@@ -17,7 +17,7 @@ type ValueSignalRow = {
   matches: { home_team: { name: string } | null; away_team: { name: string } | null } | null
 }
 
-const OUTCOME_LABEL: Record<string, string> = { home: '1', draw: 'X', away: '2' }
+const OUTCOME_LABEL: Record<string, string> = { home: 'vittoria squadra di casa (1)', draw: 'pareggio (X)', away: 'vittoria squadra ospite (2)' }
 
 /**
  * Fase 11: notifica via email i nuovi segnali "value" (non ancora notificati
@@ -74,16 +74,37 @@ export async function POST(request: Request) {
     const recipients = (profiles ?? []).map((p) => p.email).filter(Boolean)
 
     if (recipients.length > 0) {
-      const listHtml = newSignals
-        .map(
-          (s) =>
-            `<li>${s.matches?.home_team?.name ?? '—'} vs ${s.matches?.away_team?.name ?? '—'} — ${OUTCOME_LABEL[s.outcome]} @ ${s.best_odds.toFixed(2)} (${s.bookmaker_name}), edge ${(s.edge * 100).toFixed(1)} punti</li>`
-        )
+      const cardsHtml = newSignals
+        .map((s) => {
+          const home = s.matches?.home_team?.name ?? '—'
+          const away = s.matches?.away_team?.name ?? '—'
+          return `
+            <div style="border:1px solid #223028;border-radius:8px;padding:16px;margin-bottom:12px;background:#121915;">
+              <p style="margin:0 0 8px;color:#ECF2EE;font-weight:600;font-size:15px;">${home} vs ${away}</p>
+              <p style="margin:0 0 4px;color:#8FA096;font-size:13px;">Esito: <strong style="color:#ECF2EE;">${OUTCOME_LABEL[s.outcome]}</strong></p>
+              <p style="margin:0 0 4px;color:#8FA096;font-size:13px;">Quota migliore trovata: <strong style="color:#C9A24B;">${s.best_odds.toFixed(2)}</strong> presso ${s.bookmaker_name}</p>
+              <p style="margin:0;color:#8FA096;font-size:13px;">Il nostro modello stima questo esito ${(s.edge * 100).toFixed(1)} punti percentuali più probabile di quanto suggerisca la quota</p>
+            </div>`
+        })
         .join('')
+
       await sendEmail(
         recipients,
-        `Serie A Intelligence — ${newSignals.length} nuovi segnali value`,
-        `<h2>Nuovi segnali "possibile value"</h2><ul>${listHtml}</ul><p>Probabilità stimate da un modello statistico, non un pronostico garantito.</p>`
+        `Serie A Intelligence — ${newSignals.length} nuov${newSignals.length === 1 ? 'o segnale' : 'i segnali'} "possibile value"`,
+        `
+        <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;">
+          <p style="color:#8FA096;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Serie A Intelligence</p>
+          <h1 style="color:#ECF2EE;font-size:20px;margin:8px 0 16px;">Nuovi segnali "possibile value"</h1>
+          <p style="color:#8FA096;font-size:13px;margin:0 0 16px;">
+            Il nostro modello statistico ha trovato ${newSignals.length} caso${newSignals.length === 1 ? '' : 'i'} in cui la
+            probabilità stimata per un esito è significativamente più alta di quella implicita nelle quote dei bookmaker.
+          </p>
+          ${cardsHtml}
+          <p style="color:#8FA096;font-size:12px;margin-top:16px;">
+            Importante: sono probabilità stimate da un modello statistico (Dixon-Coles), non un pronostico garantito —
+            il modello può sbagliare. Non è un consiglio di gioco.
+          </p>
+        </div>`
       )
     }
 
