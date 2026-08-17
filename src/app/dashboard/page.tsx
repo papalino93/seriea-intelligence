@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/server'
+import FavoriteTeamSection from './favorite-team-section'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,24 @@ type OddsRow = { match_id: number; outcome: 'home' | 'draw' | 'away'; value: num
 type BestOdds = { home: number; draw: number; away: number; bookmakerCount: number }
 type PredictionRow = { match_id: number; home_win: number; draw: number; away_win: number }
 
+type FavoriteTeamMatch = { id: number; kickoff_at: string; home_team: { name: string } | null; away_team: { name: string } | null }
+type FavoriteTeamFormMatch = {
+  id: number
+  kickoff_at: string
+  home_score: number | null
+  away_score: number | null
+  home_team: { id: number; name: string } | null
+  away_team: { id: number; name: string } | null
+}
+type FavoriteTeamData = {
+  name: string
+  logoUrl: string | null
+  rating: number | null
+  upcoming: FavoriteTeamMatch[]
+  recentForm: FavoriteTeamFormMatch[]
+  teamId: number
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -29,10 +48,12 @@ export default async function DashboardPage({
   const supabase = await createClient()
   const { round: roundParam } = await searchParams
 
-  const { data: profile } = await supabase.auth.getUser().then(async ({ data }) => {
-    if (!data.user) return { data: null }
-    return supabase.from('profiles').select('role').eq('id', data.user.id).single()
-  })
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('role, favorite_team_id').eq('id', user.id).single()
+    : { data: null }
 
   // Stagione corrente: serve per risolvere un numero di giornata (?round=N)
   // in un round_id specifico, e per sapere i confini min/max per prev/next.
@@ -130,6 +151,50 @@ export default async function DashboardPage({
     ? await supabase.from('round_summaries').select('summary_text, generated_at').eq('round_id', roundId).maybeSingle()
     : { data: null }
 
+  const { data: allTeams } = await supabase.from('teams').select('id, name').order('name', { ascending: true })
+
+  let favoriteTeamData: FavoriteTeamData | null = null
+  if (profile?.favorite_team_id) {
+    const teamId = profile.favorite_team_id
+    const [{ data: team }, { data: rating }, { data: upcoming }, { data: recentForm }] = await Promise.all([
+      supabase.from('teams').select('name, logo_url').eq('id', teamId).single(),
+      supabase.from('team_ratings').select('rating').eq('team_id', teamId).order('computed_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase
+        .from('matches')
+        .select(
+          `id, kickoff_at,
+           home_team:teams!matches_home_team_id_fkey(name),
+           away_team:teams!matches_away_team_id_fkey(name)`
+        )
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .gte('kickoff_at', new Date().toISOString())
+        .order('kickoff_at', { ascending: true })
+        .limit(3),
+      supabase
+        .from('matches')
+        .select(
+          `id, kickoff_at, home_score, away_score,
+           home_team:teams!matches_home_team_id_fkey(id, name),
+           away_team:teams!matches_away_team_id_fkey(id, name)`
+        )
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .eq('status', 'finished')
+        .order('kickoff_at', { ascending: false })
+        .limit(5),
+    ])
+
+    if (team) {
+      favoriteTeamData = {
+        name: team.name,
+        logoUrl: team.logo_url,
+        rating: rating?.rating ?? null,
+        upcoming: (upcoming as unknown as FavoriteTeamMatch[]) ?? [],
+        recentForm: (recentForm as unknown as FavoriteTeamFormMatch[]) ?? [],
+        teamId,
+      }
+    }
+  }
+
   return (
     <main className="min-h-screen bg-bg text-text-primary">
       <div className="mx-auto max-w-3xl px-5 py-10">
@@ -175,6 +240,8 @@ export default async function DashboardPage({
             )}
           </div>
         </header>
+
+        <FavoriteTeamSection allTeams={allTeams ?? []} favoriteTeam={favoriteTeamData} />
 
         {roundSummary?.summary_text && (
           <div className="mb-6 rounded-lg border border-border bg-surface p-5">

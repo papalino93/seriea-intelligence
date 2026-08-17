@@ -23,6 +23,12 @@ Regole di linguaggio non negoziabili:
   breve riepilogo per le altre — non un elenco puntato meccanico.
 - Markdown semplice per la struttura (### per i titoli, **grassetto** per numeri/nomi chiave,
   elenchi puntati dove utile) — verrà renderizzato correttamente, quindi usalo pure.
+- PER OGNI PARTITA (anche quelle nel riepilogo breve, non solo i big match), menziona il
+  "risultato_esatto_consigliato" e — SOLO SE presente nei dati (i campi
+  marcatore_consigliato_*_SE_segna_in_quel_risultato non sono null) — il marcatore consigliato per
+  quella squadra. Se il campo è null, quella squadra non segna nel risultato consigliato: NON
+  proporre un marcatore per lei in quel caso, sarebbe contraddittorio. Usa esattamente i valori che
+  ricevi, non calcolarli né aggiustarli tu.
 
 Chiudi SEMPRE con una sezione finale intitolata "### Consigli della giornata" con 3-4 voci scelte
 tra quelle più interessanti viste sopra (mix di 1X2, risultato esatto, marcatore) — ogni voce con
@@ -119,6 +125,20 @@ export async function POST(request: Request) {
     const payload = ((matches as unknown as MatchRow[]) ?? []).map((m) => {
       const p = predictionByMatch.get(m.id)
       const v = valueByMatch.get(m.id) ?? []
+      const homeScorers = scorersByTeam.get(m.home_team?.id ?? -1) ?? []
+      const awayScorers = scorersByTeam.get(m.away_team?.id ?? -1) ?? []
+
+      // Risultato esatto consigliato = quello più probabile dal modello. Il
+      // marcatore consigliato per squadra è condizionato: proponiamo un nome
+      // SOLO se quel risultato prevede almeno un gol per quella squadra —
+      // altrimenti sarebbe un suggerimento contraddittorio (marcatore in una
+      // squadra che nel risultato consigliato non segna).
+      const topScore = p?.top_scores?.[0] as { home: number; away: number; probability: number } | undefined
+      const homeScorerSuggestion =
+        topScore && topScore.home > 0 ? (homeScorers[0]?.name ?? 'nessun dato marcatori disponibile') : null
+      const awayScorerSuggestion =
+        topScore && topScore.away > 0 ? (awayScorers[0]?.name ?? 'nessun dato marcatori disponibile') : null
+
       return {
         partita: `${m.home_team?.name ?? '—'} vs ${m.away_team?.name ?? '—'}`,
         data: m.kickoff_at,
@@ -126,14 +146,17 @@ export async function POST(request: Request) {
         over_under_2_5: p ? { over: p.over_2_5, under: p.under_2_5 } : 'non disponibile',
         gol_gol: p ? { si: p.btts_yes, no: p.btts_no } : 'non disponibile',
         risultati_esatti_top3: p ? p.top_scores?.slice(0, 3) : 'non disponibile',
+        risultato_esatto_consigliato: topScore ? `${topScore.home}-${topScore.away}` : 'non disponibile',
+        marcatore_consigliato_casa_SE_segna_in_quel_risultato: homeScorerSuggestion,
+        marcatore_consigliato_trasferta_SE_segna_in_quel_risultato: awayScorerSuggestion,
         possibili_value: v.map((s: NonNullable<typeof valueSignals>[number]) => ({
           esito: s.outcome,
           edge_punti_percentuali: (s.edge * 100).toFixed(1),
           quota: s.best_odds,
           bookmaker: s.bookmaker_name,
         })),
-        marcatori_probabili_casa: (scorersByTeam.get(m.home_team?.id ?? -1) ?? []).slice(0, 3),
-        marcatori_probabili_trasferta: (scorersByTeam.get(m.away_team?.id ?? -1) ?? []).slice(0, 3),
+        marcatori_probabili_casa: homeScorers.slice(0, 3),
+        marcatori_probabili_trasferta: awayScorers.slice(0, 3),
       }
     })
 
