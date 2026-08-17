@@ -89,6 +89,32 @@ export async function fetchTopScorers(year: number): Promise<ScorerEntry[]> {
   return json.scorers as ScorerEntry[]
 }
 
+/**
+ * 1 richiesta, tutte le 20 squadre con rosa attuale. Usata per correggere
+ * l'assegnazione squadra dei marcatori: i dati storici (/scorers) riflettono
+ * la squadra di quando i gol sono stati segnati, non quella attuale — un
+ * giocatore trasferito in estate risulterebbe ancora nella vecchia squadra
+ * se usassimo solo lo storico (successo con Dovbyk: Roma nel 2024/25, Bologna ora).
+ */
+export async function fetchCurrentSquads(): Promise<Map<number, number>> {
+  const res = await fetch(`${BASE_URL}/competitions/${SERIE_A_COMPETITION_CODE}/teams`, {
+    headers: authHeaders(),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`football-data.org /teams: HTTP ${res.status} ${body}`)
+  }
+  const json = await res.json()
+  const playerTeam = new Map<number, number>()
+  for (const team of json.teams as { id: number; squad: { id: number }[] }[]) {
+    for (const player of team.squad) {
+      playerTeam.set(player.id, team.id)
+    }
+  }
+  return playerTeam
+}
+
 /** Normalizza gli stati di football-data.org sul nostro enum interno. */
 export function mapMatchStatus(status: string): 'scheduled' | 'live' | 'finished' | 'postponed' {
   if (['IN_PLAY', 'PAUSED'].includes(status)) return 'live'

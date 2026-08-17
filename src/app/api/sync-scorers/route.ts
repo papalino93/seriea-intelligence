@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { fetchTopScorers, type ScorerEntry } from '@/lib/football-data'
+import { fetchTopScorers, fetchCurrentSquads, type ScorerEntry } from '@/lib/football-data'
 import { extractErrorMessage } from '@/lib/error-message'
 
 export const maxDuration = 60
@@ -66,18 +66,39 @@ export async function POST(request: Request) {
       }
     }
 
+    // Rosa attuale: fonte di verità per l'assegnazione squadra, non lo storico
+    // (uno storico di gol resta valido, la squadra in cui li ha fatti no —
+    // un giocatore trasferito va mostrato nella squadra dove gioca ORA).
+    const currentTeamByPlayer = await fetchCurrentSquads()
+    requestsUsed += 1
+
     const { data: teams } = await admin.from('teams').select('id, external_id')
     const teamIdByExternal = new Map((teams ?? []).map((t) => [t.external_id, t.id]))
 
-    const rows = Array.from(blended.entries()).map(([externalId, p]) => ({
-      external_id: externalId,
-      name: p.name,
-      team_id: teamIdByExternal.get(p.teamExternalId) ?? null,
-      goals: p.goals,
-      played_matches: p.playedMatches,
-      assists: p.assists,
-      updated_at: new Date().toISOString(),
-    }))
+    let excludedNotInSquad = 0
+    const rows = Array.from(blended.entries())
+      .map(([externalId, p]) => {
+        const currentTeamExternalId = currentTeamByPlayer.get(externalId)
+        return { externalId, p, currentTeamExternalId }
+      })
+      .filter((r) => {
+        // Un giocatore non più in nessuna rosa Serie A (trasferito altrove,
+        // ritirato...) va escluso, non lasciato con dati vecchi come se fosse attuale.
+        if (!r.currentTeamExternalId) {
+          excludedNotInSquad++
+          return false
+        }
+        return true
+      })
+      .map(({ externalId, p, currentTeamExternalId }) => ({
+        external_id: externalId,
+        name: p.name,
+        team_id: teamIdByExternal.get(currentTeamExternalId!) ?? null,
+        goals: p.goals,
+        played_matches: p.playedMatches,
+        assists: p.assists,
+        updated_at: new Date().toISOString(),
+      }))
 
     if (rows.length > 0) {
       const { error: insertError } = await admin.from('player_scorers').upsert(rows, { onConflict: 'external_id' })
@@ -89,7 +110,7 @@ export async function POST(request: Request) {
       sync_type: 'scorers',
       status: 'success',
       requests_used: requestsUsed,
-      message: `${rows.length} marcatori sincronizzati (stagioni ${SEASONS_TO_BLEND.join('+')})`,
+      message: `${rows.length} marcatori sincronizzati (stagioni ${SEASONS_TO_BLEND.join('+')}, squadra da rosa attuale), ${excludedNotInSquad} esclusi perché non più in Serie A`,
     })
 
     return NextResponse.json({ ok: true, scorers: rows.length, requestsUsed })
