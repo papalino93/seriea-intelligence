@@ -21,6 +21,21 @@ export default async function AdminPage() {
     .order('created_at', { ascending: false })
     .limit(10)
 
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentUsage } = await supabase
+    .from('sync_logs')
+    .select('source, requests_used')
+    .gte('created_at', oneDayAgo)
+
+  const usageBySource = new Map<string, number>()
+  for (const row of recentUsage ?? []) {
+    usageBySource.set(row.source, (usageBySource.get(row.source) ?? 0) + (row.requests_used ?? 0))
+  }
+  // Budget indicativi giornalieri, solo per le fonti dove il piano free ha un
+  // tetto rilevante (football-data.org: 10/min, nessun limite giornaliero —
+  // non serve monitorarlo qui; the-odds-api: 500/mese ≈ 16/giorno di media).
+  const DAILY_BUDGETS: Record<string, number> = { 'the-odds-api': 20 }
+
   return (
     <main className="min-h-screen bg-bg text-text-primary">
       <div className="mx-auto max-w-2xl px-5 py-10">
@@ -40,6 +55,32 @@ export default async function AdminPage() {
           <SyncButton variant="predictions" />
           <SyncButton variant="value" />
           <SyncButton variant="scorers" />
+        </div>
+
+        <h2 className="mt-10 font-display text-sm text-text-secondary">Consumi API (ultime 24h)</h2>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {usageBySource.size === 0 && (
+            <p className="font-mono text-xs text-text-secondary">Nessuna richiesta nelle ultime 24 ore.</p>
+          )}
+          {Array.from(usageBySource.entries()).map(([source, count]) => {
+            const budget = DAILY_BUDGETS[source]
+            const overThreshold = budget != null && count >= budget * 0.8
+            return (
+              <div
+                key={source}
+                className={`rounded-lg border p-3 font-mono text-xs ${
+                  overThreshold ? 'border-accent-danger/60' : 'border-border'
+                }`}
+              >
+                <p className="text-text-secondary">{source}</p>
+                <p className="mt-1 text-sm">
+                  {count}
+                  {budget != null && <span className="text-text-secondary"> / ~{budget} al giorno</span>}
+                </p>
+                {overThreshold && <p className="mt-1 text-accent-danger">vicino al limite del piano free</p>}
+              </div>
+            )
+          })}
         </div>
 
         <h2 className="mt-10 font-display text-sm text-text-secondary">Ultime sincronizzazioni</h2>
