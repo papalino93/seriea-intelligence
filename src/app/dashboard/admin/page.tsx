@@ -39,9 +39,14 @@ export default async function AdminPage() {
   return (
     <main className="min-h-screen bg-bg text-text-primary">
       <div className="mx-auto max-w-2xl px-5 py-10">
-        <Link href="/dashboard" className="font-mono text-xs text-text-secondary underline">
-          ← dashboard
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link href="/dashboard" className="font-mono text-xs text-text-secondary underline">
+            ← dashboard
+          </Link>
+          <Link href="/dashboard/admin/users" className="font-mono text-xs text-text-secondary underline">
+            gestione utenti
+          </Link>
+        </div>
         <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-text-secondary">Admin</p>
         <h1 className="mt-2 font-display text-2xl">Sincronizzazione dati</h1>
         <p className="mt-1 text-sm text-text-secondary">

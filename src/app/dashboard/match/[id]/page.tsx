@@ -397,6 +397,7 @@ function ValueSection({ signals }: { signals: ValueSignal[] }) {
                 </p>
               </div>
             </div>
+            <KellyReference modelProbability={s.model_probability} decimalOdds={s.best_odds} />
           </div>
         ))}
       </div>
@@ -405,6 +406,38 @@ function ValueSection({ signals }: { signals: ValueSignal[] }) {
         alta di quella implicita dalle quote — non è una vincita sicura, il modello può sbagliare.
         Soglia minima {(VALUE_EDGE_THRESHOLD * 100).toFixed(0)} punti percentuali per ridurre i falsi
         positivi da rumore statistico.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Riferimento matematico (frazione di Kelly), non un consiglio di puntata:
+ * quanto suggerirebbe di puntare una formula classica di gestione del
+ * bankroll SE la probabilità del modello fosse esattamente corretta — cosa
+ * che non possiamo garantire. Mostriamo Kelly pieno e 1/4 Kelly (pratica
+ * comune per ridurre la varianza) fianco a fianco, mai un numero prescrittivo isolato.
+ */
+function KellyReference({ modelProbability, decimalOdds }: { modelProbability: number; decimalOdds: number }) {
+  const b = decimalOdds - 1
+  const q = 1 - modelProbability
+  const kellyFraction = modelProbability - q / b
+  if (kellyFraction <= 0 || !Number.isFinite(kellyFraction)) return null
+
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex items-center justify-between font-mono text-xs">
+        <span className="text-text-secondary">riferimento matematico (Kelly)</span>
+        <span>
+          pieno <span className="text-text-primary">{(kellyFraction * 100).toFixed(1)}%</span> · 1/4 Kelly{' '}
+          <span className="text-accent-pitch">{((kellyFraction / 4) * 100).toFixed(1)}%</span> del capitale dedicato
+        </span>
+      </div>
+      <p className="mt-1 font-mono text-[10px] text-text-secondary">
+        Non è un consiglio su quanto puntare — è la frazione che la formula di Kelly indicherebbe SE
+        la stima del modello fosse esatta, cosa mai garantita. 1/4 Kelly è una convenzione comune per
+        ridurre la varianza rispetto a Kelly pieno, che è spesso considerato troppo aggressivo nella
+        pratica.
       </p>
     </div>
   )
