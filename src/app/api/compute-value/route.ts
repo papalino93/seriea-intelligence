@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractErrorMessage } from '@/lib/error-message'
+import { VALUE_EDGE_THRESHOLD } from '@/lib/constants'
 
 export const maxDuration = 60
 
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
       if (insertError) throw insertError
     }
 
-    const valueCount = rows.filter((r) => r.edge >= 0.03).length
+    const valueCount = rows.filter((r) => r.edge >= VALUE_EDGE_THRESHOLD).length
 
     await admin.from('sync_logs').insert({
       source: 'value-engine',

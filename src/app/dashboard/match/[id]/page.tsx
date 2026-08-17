@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { VALUE_EDGE_THRESHOLD } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,11 +42,6 @@ type ValueSignal = {
   edge: number
   ev: number
 }
-
-// Sotto questa soglia il segnale non viene evidenziato come "value": il
-// documento di progettazione (sezione 9) chiede di assorbire il rumore
-// statistico del modello, non segnalare ogni minima differenza come opportunità.
-const VALUE_EDGE_THRESHOLD = 0.03
 
 type OddsHistoryRow = { outcome: 'home' | 'draw' | 'away'; value: number; created_at: string }
 

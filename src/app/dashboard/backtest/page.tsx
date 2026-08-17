@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { VALUE_EDGE_THRESHOLD } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,8 +28,6 @@ type FinishedValueSignal = {
   bookmaker_name: string
   matches: { home_score: number | null; away_score: number | null } | null
 }
-
-const VALUE_EDGE_THRESHOLD = 0.03
 
 function outcomeOf(homeGoals: number, awayGoals: number): Outcome {
   if (homeGoals > awayGoals) return 'home'

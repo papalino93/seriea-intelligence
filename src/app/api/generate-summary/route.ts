@@ -3,10 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generateText } from '@/lib/gemini'
 import { extractErrorMessage } from '@/lib/error-message'
+import { VALUE_EDGE_THRESHOLD } from '@/lib/constants'
 
 export const maxDuration = 60
-
-const VALUE_EDGE_THRESHOLD = 0.03
 
 const SYSTEM_PROMPT = `Sei un analista quantitativo che scrive il riepilogo settimanale della Serie A per un
 gruppo privato di 3 amici che usano una dashboard di analisi personale (non un sito di scommesse,

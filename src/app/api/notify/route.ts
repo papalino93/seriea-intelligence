@@ -3,10 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/mail'
 import { extractErrorMessage } from '@/lib/error-message'
+import { VALUE_EDGE_THRESHOLD } from '@/lib/constants'
 
 export const maxDuration = 60
-
-const VALUE_EDGE_THRESHOLD = 0.03
 
 type ValueSignalRow = {
   match_id: number

@@ -20,23 +20,64 @@ type OddsRow = { match_id: number; outcome: 'home' | 'draw' | 'away'; value: num
 type BestOdds = { home: number; draw: number; away: number; bookmakerCount: number }
 type PredictionRow = { match_id: number; home_win: number; draw: number; away_win: number }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ round?: string }>
+}) {
   const supabase = await createClient()
+  const { round: roundParam } = await searchParams
 
   const { data: profile } = await supabase.auth.getUser().then(async ({ data }) => {
     if (!data.user) return { data: null }
     return supabase.from('profiles').select('role').eq('id', data.user.id).single()
   })
 
-  const { data: nextMatch } = await supabase
-    .from('matches')
-    .select('round_id, rounds(round_number)')
-    .gte('kickoff_at', new Date().toISOString())
-    .order('kickoff_at', { ascending: true })
+  // Stagione corrente: serve per risolvere un numero di giornata (?round=N)
+  // in un round_id specifico, e per sapere i confini min/max per prev/next.
+  const { data: currentSeason } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_current', true)
+    .order('year', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  const roundId = (nextMatch as { round_id: number } | null)?.round_id
+  const { data: seasonRounds } = currentSeason
+    ? await supabase
+        .from('rounds')
+        .select('id, round_number')
+        .eq('season_id', currentSeason.id)
+        .order('round_number', { ascending: true })
+    : { data: [] as { id: number; round_number: number }[] }
+
+  let roundId: number | undefined
+  let roundNumber: number | string = '—'
+
+  if (roundParam && seasonRounds?.length) {
+    const requested = seasonRounds.find((r) => r.round_number === Number(roundParam))
+    if (requested) {
+      roundId = requested.id
+      roundNumber = requested.round_number
+    }
+  }
+
+  if (roundId == null) {
+    const { data: nextMatch } = await supabase
+      .from('matches')
+      .select('round_id, rounds(round_number)')
+      .gte('kickoff_at', new Date().toISOString())
+      .order('kickoff_at', { ascending: true })
+      .limit(1)
+      .single()
+    roundId = (nextMatch as { round_id: number } | null)?.round_id
+    roundNumber = (nextMatch as { rounds: { round_number: number } | null } | null)?.rounds?.round_number ?? '—'
+  }
+
+  const minRound = seasonRounds?.[0]?.round_number
+  const maxRound = seasonRounds?.[seasonRounds.length - 1]?.round_number
+  const prevRound = typeof roundNumber === 'number' && minRound != null && roundNumber > minRound ? roundNumber - 1 : null
+  const nextRound = typeof roundNumber === 'number' && maxRound != null && roundNumber < maxRound ? roundNumber + 1 : null
 
   const { data: matches } = roundId
     ? await supabase
@@ -88,20 +129,31 @@ export default async function DashboardPage() {
     ? await supabase.from('round_summaries').select('summary_text, generated_at').eq('round_id', roundId).maybeSingle()
     : { data: null }
 
-  const roundNumber =
-    (nextMatch as { rounds: { round_number: number } | null } | null)?.rounds?.round_number ?? '—'
-
   return (
     <main className="min-h-screen bg-bg text-text-primary">
       <div className="mx-auto max-w-3xl px-5 py-10">
         <header className="mb-10 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-secondary">
-              Serie A · Prossima giornata
+              Serie A · {roundParam ? 'Giornata selezionata' : 'Prossima giornata'}
             </p>
             <div className="mt-2 flex items-baseline gap-3">
               <span className="scoreboard-digit">{roundNumber}</span>
               <span className="font-display text-2xl text-text-secondary">Giornata</span>
+            </div>
+            <div className="mt-1 flex gap-3 font-mono text-xs">
+              {prevRound != null ? (
+                <Link href={`/dashboard?round=${prevRound}`} className="text-text-secondary underline">
+                  ← giornata {prevRound}
+                </Link>
+              ) : (
+                <span className="text-text-secondary/40">← giornata {typeof roundNumber === 'number' ? roundNumber - 1 : ''}</span>
+              )}
+              {nextRound != null && (
+                <Link href={`/dashboard?round=${nextRound}`} className="text-text-secondary underline">
+                  giornata {nextRound} →
+                </Link>
+              )}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
