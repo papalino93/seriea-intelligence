@@ -60,6 +60,7 @@ export default async function AdminPage() {
           <SyncButton variant="predictions" />
           <SyncButton variant="value" />
           <SyncButton variant="scorers" />
+          <SyncButton variant="squads" />
           <SyncButton variant="notify" />
           <SyncButton variant="summary" />
         </div>

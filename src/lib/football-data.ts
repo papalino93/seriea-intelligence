@@ -115,6 +115,38 @@ export async function fetchCurrentSquads(): Promise<Map<number, number>> {
   return playerTeam
 }
 
+export interface SquadPlayer {
+  externalId: number
+  name: string
+  teamExternalId: number
+  position: string | null
+}
+
+/**
+ * 1 richiesta, stesso endpoint di fetchCurrentSquads ma tiene anche
+ * nome/ruolo — usata per popolare la rosa completa (non solo chi ha già
+ * segnato), serve come bacino ampio per un "outsider" scelto a caso tra
+ * marcatori consigliati (difensori/portieri inclusi, non solo attaccanti).
+ */
+export async function fetchFullSquads(): Promise<SquadPlayer[]> {
+  const res = await fetch(`${BASE_URL}/competitions/${SERIE_A_COMPETITION_CODE}/teams`, {
+    headers: authHeaders(),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`football-data.org /teams: HTTP ${res.status} ${body}`)
+  }
+  const json = await res.json()
+  const players: SquadPlayer[] = []
+  for (const team of json.teams as { id: number; squad: { id: number; name: string; position: string | null }[] }[]) {
+    for (const player of team.squad) {
+      players.push({ externalId: player.id, name: player.name, teamExternalId: team.id, position: player.position })
+    }
+  }
+  return players
+}
+
 /** Normalizza gli stati di football-data.org sul nostro enum interno. */
 export function mapMatchStatus(status: string): 'scheduled' | 'live' | 'finished' | 'postponed' {
   if (['IN_PLAY', 'PAUSED'].includes(status)) return 'live'

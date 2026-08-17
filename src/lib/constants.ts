@@ -23,33 +23,28 @@ export function recentFormCutoffDate(): Date {
 export type ScorerSuggestions = { top: string[]; underdog: string | null }
 
 /**
- * Sceglie i marcatori da suggerire tra una lista già ordinata per gol
- * decrescenti: 2-3 "papabili" (i più probabili) + 1 "outsider" (uno tra chi
- * ha segnato meno, ma ha comunque segnato — mai un nome a caso o inventato,
- * solo dati reali messi in evidenza diversamente). Preferisce chi ha già
- * segnato in questa stagione (nelle rotazioni adesso, non solo un buon
- * passato — es. evita di consigliare un giocatore fuori rosa). Se nessuno ha
- * ancora presenze in stagione corrente (prima giornata, il campionato deve
- * ancora iniziare), usa il vecchio criterio: tutti i candidati per gol
- * storici, senza filtro di attività.
+ * Sceglie i "papabili" (2-3 marcatori più probabili) da una lista già
+ * ordinata per gol decrescenti. Preferisce chi ha già segnato in questa
+ * stagione (nelle rotazioni adesso, non solo un buon passato — es. evita di
+ * consigliare un giocatore fuori rosa). Se nessuno ha ancora presenze in
+ * stagione corrente (prima giornata, il campionato deve ancora iniziare),
+ * usa il vecchio criterio: tutti i candidati per gol storici.
  */
-export function pickScorerSuggestions<T extends { name: string; goals: number; current_season_matches: number }>(
-  scorers: T[]
-): ScorerSuggestions {
+export function pickTopScorers<T extends { name: string; current_season_matches: number }>(scorers: T[]): string[] {
   const activeThisSeason = scorers.filter((s) => s.current_season_matches > 0)
   const pool = activeThisSeason.length > 0 ? activeThisSeason : scorers
+  return pool.slice(0, 3).map((s) => s.name)
+}
 
-  const top = pool.slice(0, 3)
-  const topNames = top.map((s) => s.name)
-
-  // L'outsider deve avere davvero meno gol del gruppo dei papabili, non solo
-  // essere 4° per posizione: con dei pari merito (es. due giocatori a 11 gol)
-  // "l'ultimo della lista" può essere un titolare quasi alla pari col 3°
-  // papabile, non un vero outsider — a parità di gol col gruppo di testa non
-  // proponiamo nessun outsider piuttosto che proporne uno finto.
-  const minTopGoals = top.length > 0 ? top[top.length - 1].goals : Infinity
-  const belowTop = pool.slice(3).filter((s) => s.goals < minTopGoals)
-  const underdog = belowTop.length > 0 ? belowTop[belowTop.length - 1].name : null
-
-  return { top: topNames, underdog }
+/**
+ * Sceglie un "outsider" a caso da TUTTA la rosa attuale (non solo dai pochi
+ * marcatori noti) — così il pool è ampio davvero (20+ giocatori, inclusi
+ * difensori/portieri a 0 gol) e non ricapita sempre lo stesso nome. Nessun
+ * dato inventato: è un nome vero e la scelta è dichiaratamente casuale, non
+ * un pronostico — semplicemente escluso chi è già tra i papabili.
+ */
+export function pickRandomOutsider<T extends { name: string }>(squad: T[], topNames: string[]): string | null {
+  const pool = squad.filter((p) => !topNames.includes(p.name))
+  if (pool.length === 0) return null
+  return pool[Math.floor(Math.random() * pool.length)].name
 }

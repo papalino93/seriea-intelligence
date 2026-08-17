@@ -28,6 +28,7 @@ export async function GET(request: Request) {
     { name: 'calendario', endpoint: '/api/sync' },
     { name: 'quote', endpoint: '/api/sync-odds' },
     { name: 'marcatori', endpoint: '/api/sync-scorers' },
+    { name: 'rosa completa', endpoint: '/api/sync-squads' },
     { name: 'previsioni', endpoint: '/api/compute-predictions' },
     { name: 'value', endpoint: '/api/compute-value' },
     { name: 'commento IA', endpoint: '/api/generate-summary' },

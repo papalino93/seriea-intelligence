@@ -1,7 +1,13 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { VALUE_EDGE_THRESHOLD, recentFormCutoffDate, pickScorerSuggestions, type ScorerSuggestions } from '@/lib/constants'
+import {
+  VALUE_EDGE_THRESHOLD,
+  recentFormCutoffDate,
+  pickTopScorers,
+  pickRandomOutsider,
+  type ScorerSuggestions,
+} from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +110,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
   const formCutoff = recentFormCutoffDate().toISOString()
 
-  const [headToHead, homeForm, awayForm, homeScorers, awayScorers] = await Promise.all([
+  const [headToHead, homeForm, awayForm, homeScorers, awayScorers, homeSquad, awaySquad] = await Promise.all([
     homeId && awayId
       ? supabase
           .from('matches')
@@ -155,6 +161,12 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           .order('goals', { ascending: false })
           .limit(8)
       : { data: [] as Scorer[] },
+    homeId
+      ? supabase.from('players').select('name').eq('team_id', homeId)
+      : { data: [] as { name: string }[] },
+    awayId
+      ? supabase.from('players').select('name').eq('team_id', awayId)
+      : { data: [] as { name: string }[] },
   ])
 
   const kickoff = new Date(m.kickoff_at)
@@ -210,6 +222,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               awayTeamName={m.away_team?.name ?? 'squadra trasferta'}
               homeScorers={(homeScorers.data as Scorer[] | null) ?? []}
               awayScorers={(awayScorers.data as Scorer[] | null) ?? []}
+              homeSquad={(homeSquad.data as { name: string }[] | null) ?? []}
+              awaySquad={(awaySquad.data as { name: string }[] | null) ?? []}
               favoriteTeamId={favoriteTeamId}
             />
           </>
@@ -554,6 +568,8 @@ function RecommendedScoreSection({
   awayTeamName,
   homeScorers,
   awayScorers,
+  homeSquad,
+  awaySquad,
   favoriteTeamId,
 }: {
   prediction: Prediction
@@ -563,6 +579,8 @@ function RecommendedScoreSection({
   awayTeamName: string
   homeScorers: Scorer[]
   awayScorers: Scorer[]
+  homeSquad: { name: string }[]
+  awaySquad: { name: string }[]
   favoriteTeamId: number | null
 }) {
   const topScore = p.top_scores?.[0]
@@ -570,8 +588,10 @@ function RecommendedScoreSection({
 
   const showHomeScorer = favoriteTeamId != null && favoriteTeamId === homeTeamId && topScore.home > 0
   const showAwayScorer = favoriteTeamId != null && favoriteTeamId === awayTeamId && topScore.away > 0
-  const homeSuggestions = pickScorerSuggestions(homeScorers)
-  const awaySuggestions = pickScorerSuggestions(awayScorers)
+  const homeTop = pickTopScorers(homeScorers)
+  const awayTop = pickTopScorers(awayScorers)
+  const homeSuggestions: ScorerSuggestions = { top: homeTop, underdog: pickRandomOutsider(homeSquad, homeTop) }
+  const awaySuggestions: ScorerSuggestions = { top: awayTop, underdog: pickRandomOutsider(awaySquad, awayTop) }
 
   return (
     <div className="mt-8">

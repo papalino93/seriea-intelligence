@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value' | 'scorers' | 'notify' | 'summary'
+type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value' | 'scorers' | 'squads' | 'notify' | 'summary'
 
 const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
   calendar: {
@@ -41,6 +41,12 @@ const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: s
     label: 'Aggiorna marcatori',
     loadingLabel: 'Sincronizzazione…',
     formatSuccess: (j) => `${j.scorers} marcatori sincronizzati`,
+  },
+  squads: {
+    endpoint: '/api/sync-squads',
+    label: 'Aggiorna rosa completa',
+    loadingLabel: 'Sincronizzazione…',
+    formatSuccess: (j) => `${j.players} giocatori in rosa sincronizzati`,
   },
   notify: {
     endpoint: '/api/notify',

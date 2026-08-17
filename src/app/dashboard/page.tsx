@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/server'
-import { recentFormCutoffDate, pickScorerSuggestions, type ScorerSuggestions } from '@/lib/constants'
+import { recentFormCutoffDate, pickTopScorers, pickRandomOutsider, type ScorerSuggestions } from '@/lib/constants'
 import FavoriteTeamSection from './favorite-team-section'
 
 export const dynamic = 'force-dynamic'
@@ -203,7 +203,7 @@ export default async function DashboardPage({
     let nextMatchRecommendation: FavoriteTeamRecommendation | null = null
     const nextMatch = (upcoming as unknown as FavoriteTeamMatch[] | null)?.[0]
     if (nextMatch) {
-      const [{ data: matchSides }, { data: prediction }, { data: topScorer }] = await Promise.all([
+      const [{ data: matchSides }, { data: prediction }, { data: topScorer }, { data: squad }] = await Promise.all([
         supabase.from('matches').select('home_team_id, away_team_id').eq('id', nextMatch.id).single(),
         supabase
           .from('predictions')
@@ -219,11 +219,13 @@ export default async function DashboardPage({
           .eq('excluded', false)
           .order('goals', { ascending: false })
           .limit(8),
+        supabase.from('players').select('name').eq('team_id', teamId),
       ])
       const topScore = (prediction?.top_scores as { home: number; away: number; probability: number }[] | undefined)?.[0]
       if (matchSides && topScore) {
         const isHome = matchSides.home_team_id === teamId
         const teamGoals = isHome ? topScore.home : topScore.away
+        const top = pickTopScorers(topScorer ?? [])
         nextMatchRecommendation = {
           matchId: nextMatch.id,
           opponentName: (isHome ? nextMatch.away_team?.name : nextMatch.home_team?.name) ?? '—',
@@ -231,7 +233,7 @@ export default async function DashboardPage({
           homeScore: topScore.home,
           awayScore: topScore.away,
           probability: topScore.probability,
-          scorerSuggestions: teamGoals > 0 ? pickScorerSuggestions(topScorer ?? []) : undefined,
+          scorerSuggestions: teamGoals > 0 ? { top, underdog: pickRandomOutsider(squad ?? [], top) } : undefined,
         }
       }
     }
