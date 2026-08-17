@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchSerieAOdds, teamNamesMatch, type OddsApiEvent } from '@/lib/odds-api'
+import { extractErrorMessage } from '@/lib/error-message'
 
 export const maxDuration = 60
 
@@ -150,7 +151,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, matched: matchedMatchIds.size, unmatchedEvents, oddsRows: oddsRows.length, requestsUsed })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'errore sconosciuto'
+    const message = extractErrorMessage(err)
     await admin.from('sync_logs').insert({
       source: 'the-odds-api',
       sync_type: 'odds',

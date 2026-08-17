@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchSeasonMatches, mapMatchStatus, type FootballDataMatch } from '@/lib/football-data'
+import { extractErrorMessage } from '@/lib/error-message'
 
 export const maxDuration = 60
 
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, matches: matches.length, requestsUsed })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'errore sconosciuto'
+    const message = extractErrorMessage(err)
     await admin.from('sync_logs').insert({
       source: 'football-data.org',
       sync_type: 'calendar',
