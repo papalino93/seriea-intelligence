@@ -33,7 +33,20 @@ export default async function AdminPage() {
           Recupera calendario, squadre e giornate da football-data.org (1 richiesta per esecuzione).
         </p>
 
-        <SyncButton />
+        <div className="flex flex-wrap items-start">
+          <SyncButton
+            endpoint="/api/sync"
+            label="Aggiorna calendario"
+            loadingLabel="Sincronizzazione…"
+            formatSuccess={(j) => `${j.matches} partite sincronizzate`}
+          />
+          <SyncButton
+            endpoint="/api/sync-odds"
+            label="Aggiorna quote"
+            loadingLabel="Sincronizzazione…"
+            formatSuccess={(j) => `${j.matched} partite con quote aggiornate (${j.unmatchedEvents} eventi non abbinati)`}
+          />
+        </div>
 
         <h2 className="mt-10 font-display text-sm text-text-secondary">Ultime sincronizzazioni</h2>
         <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-surface">

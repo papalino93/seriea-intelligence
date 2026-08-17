@@ -16,6 +16,9 @@ type MatchRow = {
   away_team: { name: string; logo_url: string | null } | null
 }
 
+type OddsRow = { match_id: number; outcome: 'home' | 'draw' | 'away'; value: number; bookmaker_id: number }
+type BestOdds = { home: number; draw: number; away: number; bookmakerCount: number }
+
 export default async function DashboardPage() {
   const supabase = await createClient()
 
@@ -45,6 +48,28 @@ export default async function DashboardPage() {
         .eq('round_id', roundId)
         .order('kickoff_at', { ascending: true })
     : { data: [] as MatchRow[] }
+
+  const matchIds = (matches as unknown as MatchRow[] | null)?.map((m) => m.id) ?? []
+  const { data: oddsData } = matchIds.length
+    ? await supabase.from('odds').select('match_id, outcome, value, bookmaker_id').eq('is_current', true).in('match_id', matchIds)
+    : { data: [] as OddsRow[] }
+
+  const bestOddsByMatch = new Map<number, BestOdds>()
+  for (const o of (oddsData as OddsRow[] | null) ?? []) {
+    const existing = bestOddsByMatch.get(o.match_id) ?? { home: 0, draw: 0, away: 0, bookmakerCount: 0 }
+    existing[o.outcome] = Math.max(existing[o.outcome], o.value)
+    bestOddsByMatch.set(o.match_id, existing)
+  }
+  // conteggio bookmaker distinti per partita (indipendente dall'esito)
+  const bookmakerSetByMatch = new Map<number, Set<number>>()
+  for (const o of (oddsData as OddsRow[] | null) ?? []) {
+    const set = bookmakerSetByMatch.get(o.match_id) ?? new Set<number>()
+    set.add(o.bookmaker_id)
+    bookmakerSetByMatch.set(o.match_id, set)
+  }
+  for (const [matchId, best] of bestOddsByMatch) {
+    best.bookmakerCount = bookmakerSetByMatch.get(matchId)?.size ?? 0
+  }
 
   const { data: lastSync } = await supabase
     .from('sync_logs')
@@ -88,9 +113,17 @@ export default async function DashboardPage() {
 
         <div className="grid gap-3">
           {(matches as unknown as MatchRow[] | null)?.map((m) => (
-            <MatchCard key={m.id} match={m} />
+            <MatchCard key={m.id} match={m} odds={bestOddsByMatch.get(m.id) ?? null} />
           ))}
         </div>
+
+        {bestOddsByMatch.size > 0 && (
+          <p className="mt-6 font-mono text-xs text-text-secondary">
+            Quote: migliori tra i bookmaker europei disponibili — nessuna garanzia di copertura sui
+            bookmaker italiani (Snai, Sisal ecc.). Solo a scopo informativo, non è consiglio di
+            gioco.
+          </p>
+        )}
       </div>
     </main>
   )
@@ -123,7 +156,7 @@ function SyncBadge({ lastSync }: { lastSync: SyncLog | null }) {
   )
 }
 
-function MatchCard({ match }: { match: MatchRow }) {
+function MatchCard({ match, odds }: { match: MatchRow; odds: BestOdds | null }) {
   const kickoff = new Date(match.kickoff_at)
   const day = kickoff.toLocaleDateString('it-IT', {
     weekday: 'short',
@@ -155,7 +188,27 @@ function MatchCard({ match }: { match: MatchRow }) {
           align="right"
         />
       </div>
+      {odds ? (
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3 font-mono text-xs">
+          <OddsPill label="1" value={odds.home} />
+          <OddsPill label="X" value={odds.draw} />
+          <OddsPill label="2" value={odds.away} />
+          <span className="text-text-secondary">{odds.bookmakerCount} bookmaker</span>
+        </div>
+      ) : (
+        <p className="mt-3 border-t border-border pt-3 font-mono text-xs text-text-secondary">
+          quote non disponibili
+        </p>
+      )}
     </div>
+  )
+}
+
+function OddsPill({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="rounded border border-border px-2 py-0.5 text-text-primary">
+      {label} <span className="text-accent-gold">{value.toFixed(2)}</span>
+    </span>
   )
 }
 

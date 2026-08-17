@@ -3,7 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function SyncButton() {
+interface SyncButtonProps {
+  endpoint: string
+  label: string
+  loadingLabel: string
+  formatSuccess: (json: Record<string, unknown>) => string
+}
+
+export default function SyncButton({ endpoint, label, loadingLabel, formatSuccess }: SyncButtonProps) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const router = useRouter()
@@ -11,13 +18,12 @@ export default function SyncButton() {
   async function handleSync() {
     setStatus('loading')
     try {
-      // Nessun secret in questa chiamata: /api/sync verifica la sessione
-      // dell'utente loggato (cookie same-origin) e controlla che il ruolo
-      // sia admin — vedi src/app/api/sync/route.ts.
-      const res = await fetch('/api/sync', { method: 'POST' })
+      // Nessun secret in questa chiamata: la route verifica la sessione
+      // dell'utente loggato (cookie same-origin) e controlla che il ruolo sia admin.
+      const res = await fetch(endpoint, { method: 'POST' })
       const json = await res.json()
       setStatus(res.ok ? 'done' : 'error')
-      setMessage(res.ok ? `${json.matches} partite sincronizzate` : json.error ?? 'errore')
+      setMessage(res.ok ? formatSuccess(json) : (json.error as string) ?? 'errore')
       router.refresh()
     } catch {
       setStatus('error')
@@ -30,9 +36,9 @@ export default function SyncButton() {
       <button
         onClick={handleSync}
         disabled={status === 'loading'}
-        className="mt-4 rounded-md bg-accent-pitch px-4 py-2 font-display text-sm text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-4 mr-3 rounded-md bg-accent-pitch px-4 py-2 font-display text-sm text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {status === 'loading' ? 'Sincronizzazione…' : 'Aggiorna calendario'}
+        {status === 'loading' ? loadingLabel : label}
       </button>
       {message && (
         <p
