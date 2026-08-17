@@ -38,6 +38,7 @@ export default async function AdminPage() {
           <SyncButton variant="odds" />
           <SyncButton variant="historical" />
           <SyncButton variant="predictions" />
+          <SyncButton variant="value" />
         </div>
 
         <h2 className="mt-10 font-display text-sm text-text-secondary">Ultime sincronizzazioni</h2>

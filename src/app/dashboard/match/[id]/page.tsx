@@ -32,6 +32,21 @@ type Prediction = {
   model_version: string
 }
 
+type ValueSignal = {
+  outcome: 'home' | 'draw' | 'away'
+  model_probability: number
+  implied_probability: number
+  best_odds: number
+  bookmaker_name: string
+  edge: number
+  ev: number
+}
+
+// Sotto questa soglia il segnale non viene evidenziato come "value": il
+// documento di progettazione (sezione 9) chiede di assorbire il rumore
+// statistico del modello, non segnalare ogni minima differenza come opportunità.
+const VALUE_EDGE_THRESHOLD = 0.03
+
 type FormMatch = {
   id: number
   kickoff_at: string
@@ -67,6 +82,11 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
     .order('computed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  const { data: valueSignals } = await supabase
+    .from('value_signals')
+    .select('outcome, model_probability, implied_probability, best_odds, bookmaker_name, edge, ev')
+    .eq('match_id', id)
 
   const [headToHead, homeForm, awayForm] = await Promise.all([
     homeId && awayId
@@ -136,6 +156,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
+        {valueSignals && valueSignals.length > 0 && (
+          <ValueSection signals={valueSignals as unknown as ValueSignal[]} />
+        )}
+
         {prediction ? (
           <PredictionSection prediction={prediction as unknown as Prediction} />
         ) : (
@@ -166,6 +190,53 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </p>
       </div>
     </main>
+  )
+}
+
+const OUTCOME_LABEL: Record<ValueSignal['outcome'], string> = { home: '1 (casa)', draw: 'X (pareggio)', away: '2 (trasferta)' }
+
+function ValueSection({ signals }: { signals: ValueSignal[] }) {
+  const aboveThreshold = signals.filter((s) => s.edge >= VALUE_EDGE_THRESHOLD)
+  if (aboveThreshold.length === 0) return null
+
+  return (
+    <div className="mt-8">
+      <h2 className="font-display text-sm text-text-secondary">Possibile value</h2>
+      <div className="mt-3 space-y-2">
+        {aboveThreshold.map((s) => (
+          <div key={s.outcome} className="rounded-lg border border-accent-gold/40 bg-surface p-4">
+            <div className="flex items-center justify-between">
+              <span className="rounded-full border border-accent-gold/60 px-2 py-0.5 font-mono text-xs text-accent-gold">
+                POSSIBILE VALUE
+              </span>
+              <span className="font-mono text-xs text-text-secondary">{OUTCOME_LABEL[s.outcome]}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs">
+              <div>
+                <p className="text-text-secondary">modello</p>
+                <p className="mt-1 text-text-primary">{(s.model_probability * 100).toFixed(1)}%</p>
+              </div>
+              <div>
+                <p className="text-text-secondary">mercato (normalizzata)</p>
+                <p className="mt-1 text-text-primary">{(s.implied_probability * 100).toFixed(1)}%</p>
+              </div>
+              <div>
+                <p className="text-text-secondary">quota migliore</p>
+                <p className="mt-1 text-accent-gold">
+                  {s.best_odds.toFixed(2)} <span className="text-text-secondary">({s.bookmaker_name})</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 font-mono text-xs text-text-secondary">
+        &quot;Possibile value&quot; significa solo che il nostro modello stima una probabilità più
+        alta di quella implicita dalle quote — non è una vincita sicura, il modello può sbagliare.
+        Soglia minima {(VALUE_EDGE_THRESHOLD * 100).toFixed(0)} punti percentuali per ridurre i falsi
+        positivi da rumore statistico.
+      </p>
+    </div>
   )
 }
 

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Variant = 'calendar' | 'odds' | 'historical' | 'predictions'
+type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value'
 
 const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
   calendar: {
@@ -29,6 +29,12 @@ const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: s
     label: 'Ricalcola previsioni',
     loadingLabel: 'Calcolo in corso…',
     formatSuccess: (j) => `${j.predicted} previsioni calcolate (${j.skippedNewTeams} partite saltate, ${j.trainSize} partite usate per il fit)`,
+  },
+  value: {
+    endpoint: '/api/compute-value',
+    label: 'Ricalcola value',
+    loadingLabel: 'Calcolo in corso…',
+    formatSuccess: (j) => `${j.computed} segnali calcolati, ${j.valueCount} con edge ≥ 3 punti`,
   },
 }
 
