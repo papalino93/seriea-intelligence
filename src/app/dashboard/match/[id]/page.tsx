@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import ProbabilityBar from '@/components/ProbabilityBar'
 import {
   VALUE_EDGE_THRESHOLD,
   recentFormCutoffDate,
@@ -512,6 +513,9 @@ function PredictionSection({ prediction: p }: { prediction: Prediction }) {
           <ProbBlock label="1" value={p.home_win} />
           <ProbBlock label="X" value={p.draw} />
           <ProbBlock label="2" value={p.away_win} />
+        </div>
+        <div className="mt-3">
+          <ProbabilityBar home={p.home_win} draw={p.draw} away={p.away_win} />
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 font-mono text-xs">
           <div className="flex justify-between">

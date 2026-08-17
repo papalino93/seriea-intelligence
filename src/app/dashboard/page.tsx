@@ -1,8 +1,15 @@
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/server'
-import { recentFormCutoffDate, pickTopScorers, pickRandomOutsider, type ScorerSuggestions } from '@/lib/constants'
+import {
+  recentFormCutoffDate,
+  pickTopScorers,
+  pickRandomOutsider,
+  VALUE_EDGE_THRESHOLD,
+  type ScorerSuggestions,
+} from '@/lib/constants'
 import FavoriteTeamSection from './favorite-team-section'
+import ProbabilityBar from '@/components/ProbabilityBar'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +28,25 @@ type MatchRow = {
 
 type OddsRow = { match_id: number; outcome: 'home' | 'draw' | 'away'; value: number; bookmaker_id: number }
 type BestOdds = { home: number; draw: number; away: number; bookmakerCount: number }
-type PredictionRow = { match_id: number; home_win: number; draw: number; away_win: number }
+type PredictionRow = {
+  match_id: number
+  home_win: number
+  draw: number
+  away_win: number
+  top_scores: { home: number; away: number; probability: number }[] | null
+}
+type ValueSignalRow = {
+  match_id: number
+  outcome: 'home' | 'draw' | 'away'
+  edge: number
+  best_odds: number
+  bookmaker_name: string
+}
+type MatchOfDay = {
+  match: MatchRow
+  prediction: PredictionRow
+  value: ValueSignalRow | null
+}
 
 type FavoriteTeamMatch = { id: number; kickoff_at: string; home_team: { name: string } | null; away_team: { name: string } | null }
 type FavoriteTeamFormMatch = {
@@ -152,9 +177,40 @@ export default async function DashboardPage({
   }
 
   const { data: predictionsData } = matchIds.length
-    ? await supabase.from('predictions').select('match_id, home_win, draw, away_win').in('match_id', matchIds)
+    ? await supabase.from('predictions').select('match_id, home_win, draw, away_win, top_scores').in('match_id', matchIds)
     : { data: [] as PredictionRow[] }
   const predictionByMatch = new Map((predictionsData as PredictionRow[] | null)?.map((p) => [p.match_id, p]))
+
+  const { data: valueSignalsData } = matchIds.length
+    ? await supabase
+        .from('value_signals')
+        .select('match_id, outcome, edge, best_odds, bookmaker_name')
+        .in('match_id', matchIds)
+        .gte('edge', VALUE_EDGE_THRESHOLD)
+        .order('edge', { ascending: false })
+    : { data: [] as ValueSignalRow[] }
+  // Partita del giorno: quella con il segnale di value più forte se ce n'è
+  // uno (edge più alto tra le partite della giornata), altrimenti quella con
+  // la stima di probabilità più alta del modello — mai una scelta arbitraria
+  // o un dato inventato, solo il numero già calcolato più "forte" tra quelli reali.
+  let matchOfDay: MatchOfDay | null = null
+  const matchesList = (matches as unknown as MatchRow[] | null) ?? []
+  const bestValueSignal = (valueSignalsData as ValueSignalRow[] | null)?.[0]
+  if (bestValueSignal) {
+    const m = matchesList.find((mm) => mm.id === bestValueSignal.match_id)
+    const p = predictionByMatch.get(bestValueSignal.match_id)
+    if (m && p) matchOfDay = { match: m, prediction: p, value: bestValueSignal }
+  }
+  if (!matchOfDay) {
+    let best: { m: MatchRow; p: PredictionRow; conf: number } | null = null
+    for (const m of matchesList) {
+      const p = predictionByMatch.get(m.id)
+      if (!p) continue
+      const conf = Math.max(p.home_win, p.draw, p.away_win)
+      if (!best || conf > best.conf) best = { m, p, conf }
+    }
+    if (best) matchOfDay = { match: best.m, prediction: best.p, value: null }
+  }
 
   const { data: lastSync } = await supabase
     .from('sync_logs')
@@ -305,6 +361,8 @@ export default async function DashboardPage({
           </div>
         </header>
 
+        {matchOfDay && <MatchOfDaySection data={matchOfDay} />}
+
         <FavoriteTeamSection allTeams={allTeams ?? []} favoriteTeam={favoriteTeamData} isAdmin={profile?.role === 'admin'} />
 
         {roundSummary?.summary_text && (
@@ -370,6 +428,89 @@ export default async function DashboardPage({
         )}
       </div>
     </main>
+  )
+}
+
+const HERO_OUTCOME_LABEL: Record<ValueSignalRow['outcome'], string> = {
+  home: '1 (casa)',
+  draw: 'X (pareggio)',
+  away: '2 (trasferta)',
+}
+
+/**
+ * Partita del giorno: la più "interessante" tra quelle già calcolate — value
+ * più forte se c'è, altrimenti la stima di probabilità più alta del modello.
+ * Nessun testo generato: solo numeri già calcolati altrove, messi in
+ * evidenza — coerente col resto dell'app (mai un dato o un giudizio inventato).
+ */
+function MatchOfDaySection({ data }: { data: MatchOfDay }) {
+  const { match: m, prediction: p, value: v } = data
+  const kickoff = new Date(m.kickoff_at)
+  const day = kickoff.toLocaleDateString('it-IT', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Europe/Rome',
+  })
+  const time = kickoff.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
+  const topScore = p.top_scores?.[0]
+
+  return (
+    <Link
+      href={`/dashboard/match/${m.id}`}
+      className="mb-6 block rounded-lg border border-accent-gold/40 bg-surface p-5 transition-colors hover:bg-surface-hover"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-mono text-xs uppercase tracking-[0.2em] text-accent-gold">
+          ★ Partita del giorno {v ? '· possibile value' : '· stima più netta'}
+        </span>
+        <span className="font-mono text-xs text-text-secondary">
+          {day} · {time}
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <TeamRow name={m.home_team?.name} logo={m.home_team?.logo_url} score={null} />
+        <span className="px-3 font-mono text-xs text-text-secondary">vs</span>
+        <TeamRow name={m.away_team?.name} logo={m.away_team?.logo_url} score={null} align="right" />
+      </div>
+      <div className="mt-4 flex items-center justify-around font-mono text-sm">
+        <ProbPill label="1" value={p.home_win} />
+        <ProbPill label="X" value={p.draw} />
+        <ProbPill label="2" value={p.away_win} />
+      </div>
+      <div className="mt-2">
+        <ProbabilityBar home={p.home_win} draw={p.draw} away={p.away_win} />
+      </div>
+      {(topScore || v) && (
+        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border pt-4 font-mono text-xs sm:grid-cols-3">
+          {topScore && (
+            <div>
+              <p className="text-text-secondary">risultato esatto consigliato</p>
+              <p className="mt-1 text-text-primary">
+                {topScore.home}-{topScore.away}{' '}
+                <span className="text-accent-gold">{(topScore.probability * 100).toFixed(1)}%</span>
+              </p>
+            </div>
+          )}
+          {v && (
+            <>
+              <div>
+                <p className="text-text-secondary">possibile value</p>
+                <p className="mt-1 text-accent-gold">
+                  {HERO_OUTCOME_LABEL[v.outcome]} · +{(v.edge * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-text-secondary">quota migliore</p>
+                <p className="mt-1 text-text-primary">
+                  {v.best_odds.toFixed(2)} <span className="text-text-secondary">({v.bookmaker_name})</span>
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Link>
   )
 }
 
@@ -444,11 +585,16 @@ function MatchCard({
         />
       </div>
       {prediction && (
-        <div className="mt-3 flex items-center gap-2 border-t border-border pt-3 font-mono text-xs">
-          <span className="text-text-secondary">stima</span>
-          <ProbPill label="1" value={prediction.home_win} />
-          <ProbPill label="X" value={prediction.draw} />
-          <ProbPill label="2" value={prediction.away_win} />
+        <div className="mt-3 border-t border-border pt-3">
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <span className="text-text-secondary">stima</span>
+            <ProbPill label="1" value={prediction.home_win} />
+            <ProbPill label="X" value={prediction.draw} />
+            <ProbPill label="2" value={prediction.away_win} />
+          </div>
+          <div className="mt-2">
+            <ProbabilityBar home={prediction.home_win} draw={prediction.draw} away={prediction.away_win} />
+          </div>
         </div>
       )}
       {odds ? (
