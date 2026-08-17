@@ -140,7 +140,7 @@ export async function POST(request: Request) {
 
     const { error: upsertError } = await admin
       .from('round_summaries')
-      .upsert({ round_id: roundId, summary_text: summaryText, model: 'gemini-2.0-flash' }, { onConflict: 'round_id' })
+      .upsert({ round_id: roundId, summary_text: summaryText, model: 'gemini-3.6-flash' }, { onConflict: 'round_id' })
     if (upsertError) throw upsertError
 
     await admin.from('sync_logs').insert({
