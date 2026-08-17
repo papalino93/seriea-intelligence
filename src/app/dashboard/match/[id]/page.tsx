@@ -20,6 +20,18 @@ type MatchDetail = {
   away_team: Team | null
 }
 
+type Prediction = {
+  home_win: number
+  draw: number
+  away_win: number
+  over_2_5: number
+  under_2_5: number
+  btts_yes: number
+  btts_no: number
+  top_scores: { home: number; away: number; probability: number }[]
+  model_version: string
+}
+
 type FormMatch = {
   id: number
   kickoff_at: string
@@ -47,6 +59,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const m = match as unknown as MatchDetail
   const homeId = m.home_team?.id
   const awayId = m.away_team?.id
+
+  const { data: prediction } = await supabase
+    .from('predictions')
+    .select('home_win, draw, away_win, over_2_5, under_2_5, btts_yes, btts_no, top_scores, model_version')
+    .eq('match_id', id)
+    .order('computed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   const [headToHead, homeForm, awayForm] = await Promise.all([
     homeId && awayId
@@ -116,6 +136,17 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
+        {prediction ? (
+          <PredictionSection prediction={prediction as unknown as Prediction} />
+        ) : (
+          m.status === 'scheduled' && (
+            <p className="mt-8 font-mono text-xs text-text-secondary">
+              Previsione non disponibile — o le squadre non hanno ancora storico a sufficienza, o il
+              modello non è ancora stato calcolato per questa partita.
+            </p>
+          )
+        )}
+
         <Section title="Precedenti">
           <MatchList matches={(headToHead.data as FormMatch[] | null) ?? []} empty="Nessun precedente trovato." />
         </Section>
@@ -135,6 +166,64 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </p>
       </div>
     </main>
+  )
+}
+
+function PredictionSection({ prediction: p }: { prediction: Prediction }) {
+  return (
+    <div className="mt-8">
+      <h2 className="font-display text-sm text-text-secondary">
+        Previsione modello <span className="text-text-secondary/60">({p.model_version})</span>
+      </h2>
+      <div className="mt-3 rounded-lg border border-border bg-surface p-4">
+        <div className="flex items-center justify-around font-mono text-sm">
+          <ProbBlock label="1" value={p.home_win} />
+          <ProbBlock label="X" value={p.draw} />
+          <ProbBlock label="2" value={p.away_win} />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 font-mono text-xs">
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Over 2.5</span>
+            <span>{(p.over_2_5 * 100).toFixed(0)}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Under 2.5</span>
+            <span>{(p.under_2_5 * 100).toFixed(0)}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Gol/Gol (GG)</span>
+            <span>{(p.btts_yes * 100).toFixed(0)}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-secondary">No Gol (NG)</span>
+            <span>{(p.btts_no * 100).toFixed(0)}%</span>
+          </div>
+        </div>
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="font-mono text-xs text-text-secondary">Risultati esatti più probabili</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {p.top_scores.map((s, i) => (
+              <span key={i} className="rounded border border-border px-2 py-1 font-mono text-xs">
+                {s.home}-{s.away} <span className="text-accent-gold">{(s.probability * 100).toFixed(1)}%</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 font-mono text-xs text-text-secondary">
+        Probabilità stimate da un modello statistico (Dixon-Coles) sui risultati storici reali, non
+        un pronostico garantito — vedi documento di progettazione.
+      </p>
+    </div>
+  )
+}
+
+function ProbBlock({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="text-center">
+      <p className="text-text-secondary">{label}</p>
+      <p className="mt-1 text-lg text-accent-pitch">{(value * 100).toFixed(0)}%</p>
+    </div>
   )
 }
 

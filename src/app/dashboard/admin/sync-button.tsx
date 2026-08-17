@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Variant = 'calendar' | 'odds' | 'historical'
+type Variant = 'calendar' | 'odds' | 'historical' | 'predictions'
 
 const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
   calendar: {
@@ -23,6 +23,12 @@ const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: s
     label: 'Carica storico (2023-2024)',
     loadingLabel: 'Caricamento storico…',
     formatSuccess: (j) => (Array.isArray(j.results) ? j.results.join(' · ') : 'fatto'),
+  },
+  predictions: {
+    endpoint: '/api/compute-predictions',
+    label: 'Ricalcola previsioni',
+    loadingLabel: 'Calcolo in corso…',
+    formatSuccess: (j) => `${j.predicted} previsioni calcolate (${j.skippedNewTeams} partite saltate, ${j.trainSize} partite usate per il fit)`,
   },
 }
 

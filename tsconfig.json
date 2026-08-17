@@ -23,5 +23,10 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "src/lib/prediction/**"]
+  "exclude": [
+    "node_modules",
+    "src/lib/prediction/validate.ts",
+    "src/lib/prediction/validate-real.ts",
+    "src/lib/prediction/tune.ts"
+  ]
 }

@@ -18,6 +18,7 @@ type MatchRow = {
 
 type OddsRow = { match_id: number; outcome: 'home' | 'draw' | 'away'; value: number; bookmaker_id: number }
 type BestOdds = { home: number; draw: number; away: number; bookmakerCount: number }
+type PredictionRow = { match_id: number; home_win: number; draw: number; away_win: number }
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -71,6 +72,11 @@ export default async function DashboardPage() {
     best.bookmakerCount = bookmakerSetByMatch.get(matchId)?.size ?? 0
   }
 
+  const { data: predictionsData } = matchIds.length
+    ? await supabase.from('predictions').select('match_id, home_win, draw, away_win').in('match_id', matchIds)
+    : { data: [] as PredictionRow[] }
+  const predictionByMatch = new Map((predictionsData as PredictionRow[] | null)?.map((p) => [p.match_id, p]))
+
   const { data: lastSync } = await supabase
     .from('sync_logs')
     .select('created_at, status')
@@ -113,15 +119,21 @@ export default async function DashboardPage() {
 
         <div className="grid gap-3">
           {(matches as unknown as MatchRow[] | null)?.map((m) => (
-            <MatchCard key={m.id} match={m} odds={bestOddsByMatch.get(m.id) ?? null} />
+            <MatchCard
+              key={m.id}
+              match={m}
+              odds={bestOddsByMatch.get(m.id) ?? null}
+              prediction={predictionByMatch.get(m.id) ?? null}
+            />
           ))}
         </div>
 
-        {bestOddsByMatch.size > 0 && (
+        {(bestOddsByMatch.size > 0 || predictionByMatch.size > 0) && (
           <p className="mt-6 font-mono text-xs text-text-secondary">
             Quote: migliori tra i bookmaker europei disponibili — nessuna garanzia di copertura sui
-            bookmaker italiani (Snai, Sisal ecc.). Solo a scopo informativo, non è consiglio di
-            gioco.
+            bookmaker italiani (Snai, Sisal ecc.). Previsioni: probabilità stimate da un modello
+            statistico (Dixon-Coles) sui risultati storici, non un pronostico garantito. Solo a
+            scopo informativo, non è consiglio di gioco.
           </p>
         )}
       </div>
@@ -156,7 +168,15 @@ function SyncBadge({ lastSync }: { lastSync: SyncLog | null }) {
   )
 }
 
-function MatchCard({ match, odds }: { match: MatchRow; odds: BestOdds | null }) {
+function MatchCard({
+  match,
+  odds,
+  prediction,
+}: {
+  match: MatchRow
+  odds: BestOdds | null
+  prediction: PredictionRow | null
+}) {
   const kickoff = new Date(match.kickoff_at)
   const day = kickoff.toLocaleDateString('it-IT', {
     weekday: 'short',
@@ -191,6 +211,14 @@ function MatchCard({ match, odds }: { match: MatchRow; odds: BestOdds | null }) 
           align="right"
         />
       </div>
+      {prediction && (
+        <div className="mt-3 flex items-center gap-2 border-t border-border pt-3 font-mono text-xs">
+          <span className="text-text-secondary">stima</span>
+          <ProbPill label="1" value={prediction.home_win} />
+          <ProbPill label="X" value={prediction.draw} />
+          <ProbPill label="2" value={prediction.away_win} />
+        </div>
+      )}
       {odds ? (
         <div className="mt-3 flex items-center justify-between border-t border-border pt-3 font-mono text-xs">
           <OddsPill label="1" value={odds.home} />
@@ -204,6 +232,14 @@ function MatchCard({ match, odds }: { match: MatchRow; odds: BestOdds | null }) 
         </p>
       )}
     </Link>
+  )
+}
+
+function ProbPill({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="rounded border border-border px-2 py-0.5 text-text-primary">
+      {label} <span className="text-accent-pitch">{(value * 100).toFixed(0)}%</span>
+    </span>
   )
 }
 
