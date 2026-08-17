@@ -73,40 +73,52 @@ export async function POST(request: Request) {
     const { data: profiles } = await admin.from('profiles').select('email')
     const recipients = (profiles ?? []).map((p) => p.email).filter(Boolean)
 
-    if (recipients.length > 0) {
-      const cardsHtml = newSignals
-        .map((s) => {
-          const home = s.matches?.home_team?.name ?? '—'
-          const away = s.matches?.away_team?.name ?? '—'
-          return `
-            <div style="border:1px solid #223028;border-radius:8px;padding:16px;margin-bottom:12px;background:#121915;">
-              <p style="margin:0 0 8px;color:#ECF2EE;font-weight:600;font-size:15px;">${home} vs ${away}</p>
-              <p style="margin:0 0 4px;color:#8FA096;font-size:13px;">Esito: <strong style="color:#ECF2EE;">${OUTCOME_LABEL[s.outcome]}</strong></p>
-              <p style="margin:0 0 4px;color:#8FA096;font-size:13px;">Quota migliore trovata: <strong style="color:#C9A24B;">${s.best_odds.toFixed(2)}</strong> presso ${s.bookmaker_name}</p>
-              <p style="margin:0;color:#8FA096;font-size:13px;">Il nostro modello stima questo esito ${(s.edge * 100).toFixed(1)} punti percentuali più probabile di quanto suggerisca la quota</p>
-            </div>`
-        })
-        .join('')
-
-      await sendEmail(
-        recipients,
-        `Serie A Intelligence — ${newSignals.length} nuov${newSignals.length === 1 ? 'o segnale' : 'i segnali'} "possibile value"`,
-        `
-        <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;">
-          <p style="color:#8FA096;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Serie A Intelligence</p>
-          <h1 style="color:#ECF2EE;font-size:20px;margin:8px 0 16px;">Nuovi segnali "possibile value"</h1>
-          <p style="color:#8FA096;font-size:13px;margin:0 0 16px;">
-            Il nostro modello statistico ha trovato ${newSignals.length} caso${newSignals.length === 1 ? '' : 'i'} in cui la
-            probabilità stimata per un esito è significativamente più alta di quella implicita nelle quote dei bookmaker.
-          </p>
-          ${cardsHtml}
-          <p style="color:#8FA096;font-size:12px;margin-top:16px;">
-            Importante: sono probabilità stimate da un modello statistico (Dixon-Coles), non un pronostico garantito —
-            il modello può sbagliare. Non è un consiglio di gioco.
-          </p>
-        </div>`
-      )
+    if (recipients.length === 0) {
+      // Nessun destinatario: NON segniamo i segnali come notificati, altrimenti
+      // resterebbero silenziosamente "persi" per sempre (il dedup li
+      // escluderebbe dai run futuri anche quando i destinatari torneranno).
+      await admin.from('sync_logs').insert({
+        source: 'notify',
+        sync_type: 'notifications',
+        status: 'error',
+        requests_used: 0,
+        message: `${newSignals.length} nuovi segnali trovati ma nessun destinatario con email valida`,
+      })
+      return NextResponse.json({ ok: false, sent: 0, error: 'nessun destinatario' })
     }
+
+    const cardsHtml = newSignals
+      .map((s) => {
+        const home = s.matches?.home_team?.name ?? '—'
+        const away = s.matches?.away_team?.name ?? '—'
+        return `
+          <div style="border:1px solid #223028;border-radius:8px;padding:16px;margin-bottom:12px;background:#121915;">
+            <p style="margin:0 0 8px;color:#ECF2EE;font-weight:600;font-size:15px;">${home} vs ${away}</p>
+            <p style="margin:0 0 4px;color:#8FA096;font-size:13px;">Esito: <strong style="color:#ECF2EE;">${OUTCOME_LABEL[s.outcome]}</strong></p>
+            <p style="margin:0 0 4px;color:#8FA096;font-size:13px;">Quota migliore trovata: <strong style="color:#C9A24B;">${s.best_odds.toFixed(2)}</strong> presso ${s.bookmaker_name}</p>
+            <p style="margin:0;color:#8FA096;font-size:13px;">Il nostro modello stima questo esito ${(s.edge * 100).toFixed(1)} punti percentuali più probabile di quanto suggerisca la quota</p>
+          </div>`
+      })
+      .join('')
+
+    await sendEmail(
+      recipients,
+      `Serie A Intelligence — ${newSignals.length} nuov${newSignals.length === 1 ? 'o segnale' : 'i segnali'} "possibile value"`,
+      `
+      <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;">
+        <p style="color:#8FA096;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;">Serie A Intelligence</p>
+        <h1 style="color:#ECF2EE;font-size:20px;margin:8px 0 16px;">Nuovi segnali "possibile value"</h1>
+        <p style="color:#8FA096;font-size:13px;margin:0 0 16px;">
+          Il nostro modello statistico ha trovato ${newSignals.length} caso${newSignals.length === 1 ? '' : 'i'} in cui la
+          probabilità stimata per un esito è significativamente più alta di quella implicita nelle quote dei bookmaker.
+        </p>
+        ${cardsHtml}
+        <p style="color:#8FA096;font-size:12px;margin-top:16px;">
+          Importante: sono probabilità stimate da un modello statistico (Dixon-Coles), non un pronostico garantito —
+          il modello può sbagliare. Non è un consiglio di gioco.
+        </p>
+      </div>`
+    )
 
     await admin.from('notifications_sent').insert(
       newSignals.map((s) => ({

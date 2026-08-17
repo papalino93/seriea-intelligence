@@ -50,6 +50,8 @@ export default function SchedinaBuilder({ matches }: { matches: MatchOption[] })
       setErrorMsg(res.error ?? 'errore')
     } else {
       setStatus('saved')
+      setSelections({}) // evita di risalvare per sbaglio la stessa schedina cliccando di nuovo
+      setStake('')
       router.refresh()
     }
   }
@@ -99,7 +101,7 @@ export default function SchedinaBuilder({ matches }: { matches: MatchOption[] })
 
       {Object.keys(selections).length > 0 && (
         <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <div className="flex justify-between font-mono text-xs">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 font-mono text-xs">
             <span className="text-text-secondary">Miglior combinazione teorica</span>
             <span className="text-accent-gold">{summary.theoreticalTotal.toFixed(2)}</span>
           </div>
@@ -108,7 +110,7 @@ export default function SchedinaBuilder({ matches }: { matches: MatchOption[] })
             non giocabile realmente.
           </p>
 
-          <div className="mt-4 flex justify-between border-t border-border pt-4 font-mono text-xs">
+          <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 border-t border-border pt-4 font-mono text-xs">
             <span className="text-text-secondary">Miglior schedina realmente giocabile</span>
             <span className="text-accent-pitch">
               {summary.playable ? `${summary.playable.total.toFixed(2)} (${summary.playable.bookmakerName})` : 'non disponibile'}

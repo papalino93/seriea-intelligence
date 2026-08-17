@@ -130,7 +130,7 @@ export default async function BacktestPage() {
           </p>
         ) : (
           <>
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Stat label="Partite valutate" value={String(evaluated)} />
               <Stat label="Brier Score" value={(brierSum / evaluated).toFixed(4)} sub="baseline: 0.667" />
               <Stat label="Log Loss" value={(logLossSum / evaluated).toFixed(4)} sub="baseline: 1.099" />

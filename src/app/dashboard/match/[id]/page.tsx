@@ -296,13 +296,13 @@ function ValueSection({ signals }: { signals: ValueSignal[] }) {
               </span>
               <span className="font-mono text-xs text-text-secondary">{OUTCOME_LABEL[s.outcome]}</span>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs">
+            <div className="mt-3 grid grid-cols-1 gap-2 font-mono text-xs sm:grid-cols-3">
               <div>
-                <p className="text-text-secondary">modello</p>
+                <p className="text-text-secondary">stima modello</p>
                 <p className="mt-1 text-text-primary">{(s.model_probability * 100).toFixed(1)}%</p>
               </div>
               <div>
-                <p className="text-text-secondary">mercato (normalizzata)</p>
+                <p className="text-text-secondary">stima mercato</p>
                 <p className="mt-1 text-text-primary">{(s.implied_probability * 100).toFixed(1)}%</p>
               </div>
               <div>

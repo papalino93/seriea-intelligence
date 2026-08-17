@@ -90,7 +90,7 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen bg-bg text-text-primary">
       <div className="mx-auto max-w-3xl px-5 py-10">
-        <header className="mb-10 flex items-start justify-between gap-4">
+        <header className="mb-10 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-secondary">
               Serie A · Prossima giornata
