@@ -40,13 +40,23 @@ export interface SeasonMatchesResult {
  * un'interrogazione separata per determinarla).
  */
 export async function fetchSeasonMatches(): Promise<SeasonMatchesResult> {
-  const res = await fetch(`${BASE_URL}/competitions/${SERIE_A_COMPETITION_CODE}/matches`, {
+  return fetchSeasonMatchesForYear(null)
+}
+
+/**
+ * 1 richiesta. Come fetchSeasonMatches ma per un anno specifico (usato per il
+ * backfill storico) — passare null per la stagione corrente. Il piano free
+ * copre solo le ultime ~3 stagioni: anni precedenti restituiscono 403.
+ */
+export async function fetchSeasonMatchesForYear(year: number | null): Promise<SeasonMatchesResult> {
+  const qs = year ? `?season=${year}` : ''
+  const res = await fetch(`${BASE_URL}/competitions/${SERIE_A_COMPETITION_CODE}/matches${qs}`, {
     headers: authHeaders(),
     cache: 'no-store',
   })
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`football-data.org /matches: HTTP ${res.status} ${body}`)
+    throw new Error(`football-data.org /matches${qs}: HTTP ${res.status} ${body}`)
   }
 
   const json = await res.json()

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Variant = 'calendar' | 'odds'
+type Variant = 'calendar' | 'odds' | 'historical'
 
 const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
   calendar: {
@@ -17,6 +17,12 @@ const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: s
     label: 'Aggiorna quote',
     loadingLabel: 'Sincronizzazione…',
     formatSuccess: (j) => `${j.matched} partite con quote aggiornate (${j.unmatchedEvents} eventi non abbinati)`,
+  },
+  historical: {
+    endpoint: '/api/sync-historical',
+    label: 'Carica storico (2023-2024)',
+    loadingLabel: 'Caricamento storico…',
+    formatSuccess: (j) => (Array.isArray(j.results) ? j.results.join(' · ') : 'fatto'),
   },
 }
 

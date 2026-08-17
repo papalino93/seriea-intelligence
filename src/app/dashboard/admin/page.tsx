@@ -36,6 +36,7 @@ export default async function AdminPage() {
         <div className="flex flex-wrap items-start">
           <SyncButton variant="calendar" />
           <SyncButton variant="odds" />
+          <SyncButton variant="historical" />
         </div>
 
         <h2 className="mt-10 font-display text-sm text-text-secondary">Ultime sincronizzazioni</h2>
