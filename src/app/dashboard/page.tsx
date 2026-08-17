@@ -171,7 +171,10 @@ function MatchCard({ match, odds }: { match: MatchRow; odds: BestOdds | null }) 
   })
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-hover">
+    <Link
+      href={`/dashboard/match/${match.id}`}
+      className="block rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-hover"
+    >
       <div className="mb-3 flex items-center justify-between font-mono text-xs text-text-secondary">
         <span>
           {day} · {time}
@@ -200,7 +203,7 @@ function MatchCard({ match, odds }: { match: MatchRow; odds: BestOdds | null }) 
           quote non disponibili
         </p>
       )}
-    </div>
+    </Link>
   )
 }
 

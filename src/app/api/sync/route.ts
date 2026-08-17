@@ -126,6 +126,9 @@ export async function POST(request: Request) {
       status: mapMatchStatus(m.status),
       home_score: m.score.fullTime.home,
       away_score: m.score.fullTime.away,
+      home_score_ht: m.score.halfTime.home,
+      away_score_ht: m.score.halfTime.away,
+      referee_name: m.referees?.[0]?.name ?? null,
       updated_at: new Date().toISOString(),
     }))
     if (matchRows.length > 0) {

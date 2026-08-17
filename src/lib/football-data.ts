@@ -21,8 +21,12 @@ export interface FootballDataMatch {
   venue: string | null
   homeTeam: FootballDataTeam
   awayTeam: FootballDataTeam
-  score: { fullTime: { home: number | null; away: number | null } }
+  score: {
+    fullTime: { home: number | null; away: number | null }
+    halfTime: { home: number | null; away: number | null }
+  }
   season: { id: number; startDate: string }
+  referees: { name: string; type: string }[]
 }
 
 export interface SeasonMatchesResult {

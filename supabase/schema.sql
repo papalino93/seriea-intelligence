@@ -59,6 +59,9 @@ create table public.matches (
   status text not null default 'scheduled',  -- scheduled | live | finished | postponed
   home_score integer,
   away_score integer,
+  home_score_ht integer,
+  away_score_ht integer,
+  referee_name text,
   updated_at timestamptz not null default now()
 );
 
