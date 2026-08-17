@@ -79,6 +79,20 @@ export function fitModel(matches: MatchResult[], options: FitOptions = {}): Fitt
     weight: poissonWeight(m.date, opt.asOf, opt.timeDecay),
   }))
 
+  // Conteggio pesato di quante partite coinvolgono ciascuna squadra, e totale:
+  // serve a mediare i gradienti (sotto) invece di sommarli grezzi. Senza questa
+  // normalizzazione la dimensione del passo di aggiornamento scala con la
+  // dimensione del dataset — su un test sintetico di 30 partite può sembrare
+  // stabile e poi divergere (homeAdvantage → NaN) su un dataset reale di
+  // centinaia di partite, dove la somma dei residui è semplicemente più grande.
+  const matchCountByTeam = new Map(teamNames.map((t) => [t, 0]))
+  let totalWeight = 0
+  for (const m of weighted) {
+    matchCountByTeam.set(m.homeTeam, matchCountByTeam.get(m.homeTeam)! + m.weight)
+    matchCountByTeam.set(m.awayTeam, matchCountByTeam.get(m.awayTeam)! + m.weight)
+    totalWeight += m.weight
+  }
+
   for (let iter = 0; iter < opt.iterations; iter++) {
     const gradAttack = new Map(teamNames.map((t) => [t, 0]))
     const gradDefense = new Map(teamNames.map((t) => [t, 0]))
@@ -104,12 +118,13 @@ export function fitModel(matches: MatchResult[], options: FitOptions = {}): Fitt
     }
 
     for (const t of teamNames) {
-      const newAttack = attack.get(t)! + opt.learningRate * (gradAttack.get(t)! - opt.l2 * attack.get(t)!)
-      const newDefense = defense.get(t)! + opt.learningRate * (gradDefense.get(t)! - opt.l2 * defense.get(t)!)
+      const n = Math.max(matchCountByTeam.get(t)!, 1)
+      const newAttack = attack.get(t)! + opt.learningRate * (gradAttack.get(t)! / n - opt.l2 * attack.get(t)!)
+      const newDefense = defense.get(t)! + opt.learningRate * (gradDefense.get(t)! / n - opt.l2 * defense.get(t)!)
       attack.set(t, newAttack)
       defense.set(t, newDefense)
     }
-    homeAdvantage += opt.learningRate * gradHomeAdv * 0.1 // passo più piccolo: un solo parametro globale, converge in fretta
+    homeAdvantage += opt.learningRate * (gradHomeAdv / totalWeight) // mediato sul totale, non sulla somma grezza
 
     // Vincolo di identificabilità: senza normalizzare, attacco e difesa possono
     // scorrere insieme (es. tutti +1 attacco, tutti -1 difesa danno lo stesso
