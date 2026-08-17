@@ -108,8 +108,11 @@ async function main() {
   let skippedNewTeams = 0
   let correctPicks = 0
 
-  // Calibrazione: bucket da 10 punti percentuali sulla probabilità assegnata
-  // all'esito REALMENTE accaduto (non solo all'home win) — copre tutti e tre gli esiti.
+  // Calibrazione corretta: per ogni partita, ciascuno dei 3 esiti (home/draw/away)
+  // contribuisce una coppia (probabilità predetta, è successo sì/no) al bucket
+  // corrispondente — non solo l'esito poi realmente accaduto. Così il bucket
+  // "70-80%" confronta la probabilità media predetta con la frequenza REALE con
+  // cui quell'esito si è verificato in quel range, su tutte le previsioni fatte.
   const calibBuckets = Array.from({ length: 10 }, () => ({ predictedSum: 0, occurred: 0, count: 0 }))
 
   for (const m of test) {
@@ -129,10 +132,13 @@ async function main() {
     const predicted = (['home', 'draw', 'away'] as const).reduce((best, k) => (probs[k] > probs[best] ? k : best), 'home')
     if (predicted === actual) correctPicks++
 
-    const bucket = Math.min(9, Math.floor(probs[actual] * 10))
-    calibBuckets[bucket].predictedSum += probs[actual]
-    calibBuckets[bucket].occurred += 1 // per costruzione, in questo bucket l'esito è SEMPRE quello predetto come "actual"
-    calibBuckets[bucket].count += 1
+    for (const outcome of ['home', 'draw', 'away'] as const) {
+      const p = probs[outcome]
+      const bucket = Math.min(9, Math.floor(p * 10))
+      calibBuckets[bucket].predictedSum += p
+      calibBuckets[bucket].occurred += outcome === actual ? 1 : 0
+      calibBuckets[bucket].count += 1
+    }
 
     evaluated++
   }
@@ -142,17 +148,21 @@ async function main() {
   console.log(`Log Loss: ${(logLossSum / evaluated).toFixed(4)}  — atteso: un modello uniforme dà ln(3) ≈ 1.099; più basso è meglio`)
   console.log(`Accuratezza pick secco (predetto = esito più probabile): ${((correctPicks / evaluated) * 100).toFixed(1)}%\n`)
 
-  console.log('--- Calibrazione (per bucket di probabilità assegnata all\'esito poi realmente accaduto) ---')
-  console.log('bucket prob.   n. partite   prob. media predetta')
+  console.log('--- Calibrazione (curva di affidabilità su tutte e 3 le previsioni per partita) ---')
+  console.log('bucket prob.   n. previsioni   prob. media predetta   frequenza reale')
   for (let i = 0; i < calibBuckets.length; i++) {
     const b = calibBuckets[i]
     if (b.count === 0) continue
+    const predictedAvg = (b.predictedSum / b.count) * 100
+    const actualFreq = (b.occurred / b.count) * 100
+    const gap = Math.abs(predictedAvg - actualFreq)
+    const flag = gap > 10 ? '  ⚠️ scarto > 10pt' : ''
     console.log(
-      `${(i * 10).toString().padStart(2)}-${(i * 10 + 10).toString().padStart(3)}%     ${b.count.toString().padStart(6)}       ${((b.predictedSum / b.count) * 100).toFixed(1)}%`
+      `${(i * 10).toString().padStart(2)}-${(i * 10 + 10).toString().padStart(3)}%     ${b.count.toString().padStart(9)}         ${predictedAvg.toFixed(1)}%              ${actualFreq.toFixed(1)}%${flag}`
     )
   }
   console.log(
-    '\n(nota: qui ogni bucket contiene SOLO le partite dove l\'esito predetto ha vinto — è la distribuzione di quanta probabilità il modello dava agli esiti che poi si sono davvero verificati, non una vera curva di calibrazione su tutti gli esiti. Per una calibrazione rigorosa servirebbe binnare su TUTTE le previsioni, non solo sugli esiti azzeccati — nota per iterazioni future.)'
+    '\n(un modello ben calibrato ha "prob. media predetta" ≈ "frequenza reale" in ogni bucket: quando dice "60%" per un esito, quell\'esito deve verificarsi circa 6 volte su 10 nel lungo periodo — coerente col criterio di validazione del documento di progettazione, sezione 8.)'
   )
 }
 
