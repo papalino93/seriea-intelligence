@@ -3,17 +3,28 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-interface SyncButtonProps {
-  endpoint: string
-  label: string
-  loadingLabel: string
-  formatSuccess: (json: Record<string, unknown>) => string
+type Variant = 'calendar' | 'odds'
+
+const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
+  calendar: {
+    endpoint: '/api/sync',
+    label: 'Aggiorna calendario',
+    loadingLabel: 'Sincronizzazione…',
+    formatSuccess: (j) => `${j.matches} partite sincronizzate`,
+  },
+  odds: {
+    endpoint: '/api/sync-odds',
+    label: 'Aggiorna quote',
+    loadingLabel: 'Sincronizzazione…',
+    formatSuccess: (j) => `${j.matched} partite con quote aggiornate (${j.unmatchedEvents} eventi non abbinati)`,
+  },
 }
 
-export default function SyncButton({ endpoint, label, loadingLabel, formatSuccess }: SyncButtonProps) {
+export default function SyncButton({ variant }: { variant: Variant }) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const router = useRouter()
+  const { endpoint, label, loadingLabel, formatSuccess } = CONFIG[variant]
 
   async function handleSync() {
     setStatus('loading')
