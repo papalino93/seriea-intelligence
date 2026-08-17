@@ -26,6 +26,15 @@ export interface ApiFootballFixture {
  * 1 richiesta. Trova l'anno della stagione corrente di Serie A
  * (API-Football indicizza le stagioni per anno di inizio, es. 2026 per 2026/27).
  */
+/** API-Football restituisce sempre HTTP 200 anche sugli errori applicativi: il vero esito è in `errors`. */
+function assertNoApiErrors(json: { errors?: unknown }, context: string) {
+  const errors = json.errors
+  const hasErrors = Array.isArray(errors) ? errors.length > 0 : !!errors && Object.keys(errors).length > 0
+  if (hasErrors) {
+    throw new Error(`API-Football ${context}: ${JSON.stringify(errors)}`)
+  }
+}
+
 export async function fetchCurrentSeasonYear(): Promise<number> {
   const res = await fetch(`${BASE_URL}/leagues?id=${SERIE_A_LEAGUE_ID}`, {
     headers: authHeaders(),
@@ -34,6 +43,7 @@ export async function fetchCurrentSeasonYear(): Promise<number> {
   if (!res.ok) throw new Error(`API-Football /leagues: HTTP ${res.status}`)
 
   const json = await res.json()
+  assertNoApiErrors(json, '/leagues')
   const current = json.response?.[0]?.seasons?.find((s: { year: number; current: boolean }) => s.current)
   if (!current) throw new Error('Nessuna stagione corrente restituita da API-Football')
   return current.year as number
@@ -53,6 +63,7 @@ export async function fetchSeasonFixtures(seasonYear: number): Promise<ApiFootba
   if (!res.ok) throw new Error(`API-Football /fixtures: HTTP ${res.status}`)
 
   const json = await res.json()
+  assertNoApiErrors(json, '/fixtures')
   return json.response as ApiFootballFixture[]
 }
 

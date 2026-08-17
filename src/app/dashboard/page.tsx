@@ -110,6 +110,7 @@ function SyncBadge({ lastSync }: { lastSync: SyncLog | null }) {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Europe/Rome',
   })
   return (
     <span
@@ -124,8 +125,17 @@ function SyncBadge({ lastSync }: { lastSync: SyncLog | null }) {
 
 function MatchCard({ match }: { match: MatchRow }) {
   const kickoff = new Date(match.kickoff_at)
-  const day = kickoff.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' })
-  const time = kickoff.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  const day = kickoff.toLocaleDateString('it-IT', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Europe/Rome',
+  })
+  const time = kickoff.toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Rome',
+  })
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-hover">

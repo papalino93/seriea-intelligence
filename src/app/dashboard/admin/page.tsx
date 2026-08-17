@@ -47,7 +47,7 @@ export default async function AdminPage() {
               </span>
               <span className="text-text-secondary">{log.message}</span>
               <span className="text-text-secondary">
-                {new Date(log.created_at).toLocaleString('it-IT')}
+                {new Date(log.created_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}
               </span>
             </div>
           ))}
