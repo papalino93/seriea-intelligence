@@ -48,15 +48,15 @@ export default async function RatingsPage() {
         ) : (
           <div className="mt-6 divide-y divide-border rounded-lg border border-border bg-surface">
             {ranked.map((r, i) => (
-              <div key={r.team_id} className="flex items-center gap-3 px-4 py-3">
-                <span className="w-6 font-mono text-xs text-text-secondary">{i + 1}</span>
+              <div key={r.team_id} className="flex items-center gap-2 px-4 py-3 sm:gap-3">
+                <span className="w-5 shrink-0 font-mono text-xs text-text-secondary sm:w-6">{i + 1}</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {r.teams?.logo_url && <img src={r.teams.logo_url} alt="" className="h-6 w-6" />}
-                <span className="flex-1 font-display text-sm">{r.teams?.name ?? '—'}</span>
-                <span className="font-mono text-xs text-text-secondary">
+                {r.teams?.logo_url && <img src={r.teams.logo_url} alt="" className="h-6 w-6 shrink-0" />}
+                <span className="min-w-0 flex-1 truncate font-display text-sm">{r.teams?.name ?? '—'}</span>
+                <span className="hidden shrink-0 font-mono text-xs text-text-secondary sm:inline">
                   att. {r.attack.toFixed(2)} · dif. {r.defense.toFixed(2)}
                 </span>
-                <span className="w-10 text-right font-mono text-sm text-accent-pitch">{r.rating}</span>
+                <span className="w-10 shrink-0 text-right font-mono text-sm text-accent-pitch">{r.rating}</span>
               </div>
             ))}
           </div>

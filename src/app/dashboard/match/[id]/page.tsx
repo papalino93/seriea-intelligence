@@ -240,15 +240,23 @@ const OUTCOME_SHORT: Record<OddsHistoryRow['outcome'], string> = { home: '1', dr
 function OddsHistorySection({ rows }: { rows: OddsHistoryRow[] }) {
   if (rows.length < 2) return null // serve almeno 2 punti per un "andamento"
 
+  // Per (timestamp, outcome) prendiamo la quota migliore tra i bookmaker.
+  // Niente chiavi stringa concatenate: i timestamp ISO contengono ":" e
+  // spaccherebbero uno split(':') nei posti sbagliati (bug reale trovato in
+  // produzione — "outcome" finiva per essere un frammento d'orario tipo "29").
   const byOutcome: Record<OddsHistoryRow['outcome'], { t: number; v: number }[]> = { home: [], draw: [], away: [] }
-  const byTimestampOutcome = new Map<string, number>() // "ts:outcome" -> valore migliore a quel timestamp
+  const bestByTimestamp = new Map<number, Partial<Record<OddsHistoryRow['outcome'], number>>>()
   for (const r of rows) {
-    const key = `${r.created_at}:${r.outcome}`
-    byTimestampOutcome.set(key, Math.max(byTimestampOutcome.get(key) ?? 0, r.value))
+    const t = new Date(r.created_at).getTime()
+    const entry = bestByTimestamp.get(t) ?? {}
+    entry[r.outcome] = Math.max(entry[r.outcome] ?? 0, r.value)
+    bestByTimestamp.set(t, entry)
   }
-  for (const [key, value] of byTimestampOutcome) {
-    const [ts, outcome] = key.split(':') as [string, OddsHistoryRow['outcome']]
-    byOutcome[outcome].push({ t: new Date(ts).getTime(), v: value })
+  for (const [t, byOut] of bestByTimestamp) {
+    for (const outcome of ['home', 'draw', 'away'] as const) {
+      const v = byOut[outcome]
+      if (v != null) byOutcome[outcome].push({ t, v })
+    }
   }
   for (const outcome of Object.keys(byOutcome) as OddsHistoryRow['outcome'][]) {
     byOutcome[outcome].sort((a, b) => a.t - b.t)

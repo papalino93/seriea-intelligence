@@ -66,8 +66,8 @@ export default function UsersManager({ users, currentUserId }: { users: Profile[
       <div className="mt-6 divide-y divide-border rounded-lg border border-border bg-surface">
         {users.map((u) => (
           <div key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <div>
-              <p className="font-mono text-sm">{u.email}</p>
+            <div className="min-w-0">
+              <p className="break-all font-mono text-sm">{u.email}</p>
               <p className="font-mono text-[10px] text-text-secondary">
                 dal {new Date(u.created_at).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome' })}
                 {u.id === currentUserId && ' · tu'}
