@@ -489,11 +489,13 @@ function TeamRow({
   align?: 'left' | 'right'
 }) {
   return (
-    <div className={`flex flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+    <div
+      className={`flex min-w-0 flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {logo && <img src={logo} alt="" className="h-6 w-6" />}
-      <span className="font-display text-sm">{name ?? 'Squadra sconosciuta'}</span>
-      {score != null && <span className="font-mono text-sm text-text-secondary">{score}</span>}
+      {logo && <img src={logo} alt="" className="h-6 w-6 shrink-0" />}
+      <span className="min-w-0 truncate font-display text-sm">{name ?? 'Squadra sconosciuta'}</span>
+      {score != null && <span className="shrink-0 font-mono text-sm text-text-secondary">{score}</span>}
     </div>
   )
 }

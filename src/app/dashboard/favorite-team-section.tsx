@@ -86,11 +86,11 @@ export default function FavoriteTeamSection({
 
       {favoriteTeam && (
         <div className="mt-4">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {favoriteTeam.logoUrl && <img src={favoriteTeam.logoUrl} alt="" className="h-10 w-10" />}
-            <div>
-              <p className="font-display text-lg">{favoriteTeam.name}</p>
+            {favoriteTeam.logoUrl && <img src={favoriteTeam.logoUrl} alt="" className="h-10 w-10 shrink-0" />}
+            <div className="min-w-0">
+              <p className="truncate font-display text-lg">{favoriteTeam.name}</p>
               {favoriteTeam.rating != null && (
                 <p className="font-mono text-xs text-text-secondary">rating modello: {favoriteTeam.rating}/100</p>
               )}
@@ -146,14 +146,16 @@ export default function FavoriteTeamSection({
               <div className="mt-2 space-y-1">
                 {favoriteTeam.manageableScorers.map((s) => (
                   <div key={s.id} className="flex items-center justify-between gap-2 font-mono text-xs">
-                    <span className={s.excluded ? 'text-text-secondary line-through' : 'text-text-primary'}>
+                    <span
+                      className={`min-w-0 truncate ${s.excluded ? 'text-text-secondary line-through' : 'text-text-primary'}`}
+                    >
                       {s.name} <span className="text-text-secondary">({s.goals} gol)</span>
                     </span>
                     <button
                       type="button"
                       disabled={togglingId === s.id}
                       onClick={() => handleToggleExclusion(s.id, s.excluded)}
-                      className={`rounded-md border px-2 py-0.5 text-[10px] disabled:opacity-50 ${
+                      className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] disabled:opacity-50 ${
                         s.excluded
                           ? 'border-accent-pitch/60 text-accent-pitch hover:bg-accent-pitch/10'
                           : 'border-accent-danger/40 text-accent-danger hover:bg-accent-danger/10'

@@ -394,9 +394,9 @@ function ScorersSection({
 function ScorerList({ teamName, scorers }: { teamName: string; scorers: Scorer[] }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-xs text-text-secondary">{teamName}</p>
-        <p className="font-mono text-[10px] text-text-secondary">gol · presenze · prob.</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate font-mono text-xs text-text-secondary">{teamName}</p>
+        <p className="shrink-0 font-mono text-[10px] text-text-secondary">gol · presenze · prob.</p>
       </div>
       {scorers.length === 0 ? (
         <p className="mt-2 font-mono text-xs text-text-secondary">Dati non disponibili.</p>
@@ -406,9 +406,9 @@ function ScorerList({ teamName, scorers }: { teamName: string; scorers: Scorer[]
             const rate = s.played_matches > 0 ? s.goals / s.played_matches : 0
             const scoreProbability = 1 - Math.exp(-rate)
             return (
-              <div key={s.name} className="flex items-center justify-between font-mono text-xs">
-                <span>{s.name}</span>
-                <span className="text-text-secondary">
+              <div key={s.name} className="flex items-center justify-between gap-2 font-mono text-xs">
+                <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                <span className="shrink-0 text-right text-text-secondary">
                   {s.goals} gol · {s.played_matches} pres. ·{' '}
                   <span className="text-accent-gold">{(scoreProbability * 100).toFixed(0)}% prob. gol</span>
                 </span>
@@ -647,11 +647,11 @@ function ProbBlock({ label, value }: { label: string; value: number }) {
 
 function TeamHeader({ team, score, align }: { team: Team | null; score: number | null; align: 'left' | 'right' }) {
   return (
-    <div className={`flex flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+    <div className={`flex min-w-0 flex-1 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {team?.logo_url && <img src={team.logo_url} alt="" className="h-8 w-8" />}
-      <div>
-        <p className="font-display text-base">{team?.name ?? 'Squadra sconosciuta'}</p>
+      {team?.logo_url && <img src={team.logo_url} alt="" className="h-8 w-8 shrink-0" />}
+      <div className="min-w-0">
+        <p className="truncate font-display text-base">{team?.name ?? 'Squadra sconosciuta'}</p>
         {score != null && <p className="font-mono text-lg text-accent-pitch">{score}</p>}
       </div>
     </div>
