@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -180,10 +181,22 @@ export default async function DashboardPage({
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-secondary">
               Commento della giornata
             </p>
-            <div className="mt-3 space-y-3 text-sm leading-relaxed text-text-primary">
-              {roundSummary.summary_text.split('\n').filter(Boolean).map((para: string, i: number) => (
-                <p key={i}>{para}</p>
-              ))}
+            <div className="mt-3 text-sm leading-relaxed text-text-primary">
+              <ReactMarkdown
+                components={{
+                  h1: (p) => <h3 className="mt-4 mb-2 font-display text-lg first:mt-0" {...p} />,
+                  h2: (p) => <h3 className="mt-4 mb-2 font-display text-lg first:mt-0" {...p} />,
+                  h3: (p) => <h4 className="mt-4 mb-2 font-display text-base first:mt-0" {...p} />,
+                  p: (p) => <p className="mb-3" {...p} />,
+                  strong: (p) => <strong className="text-accent-gold" {...p} />,
+                  em: (p) => <em className="text-text-secondary not-italic" {...p} />,
+                  ul: (p) => <ul className="mb-3 list-disc space-y-1 pl-5" {...p} />,
+                  li: (p) => <li {...p} />,
+                  hr: () => <hr className="my-4 border-border" />,
+                }}
+              >
+                {roundSummary.summary_text}
+              </ReactMarkdown>
             </div>
             <p className="mt-4 font-mono text-[10px] text-text-secondary">
               Generato da un modello linguistico a partire dai numeri già calcolati dal nostro

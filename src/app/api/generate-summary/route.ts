@@ -21,8 +21,15 @@ Regole di linguaggio non negoziabili:
   regge meno in trasferta"), non limitarti a ripetere le percentuali.
 - Scrivi in italiano, in prosa scorrevole con qualche paragrafo per partita più interessante e un
   breve riepilogo per le altre — non un elenco puntato meccanico.
-- Chiudi sempre con un promemoria breve e non moralistico che è uno strumento di analisi, non un
-  consiglio di gioco.`
+- Markdown semplice per la struttura (### per i titoli, **grassetto** per numeri/nomi chiave,
+  elenchi puntati dove utile) — verrà renderizzato correttamente, quindi usalo pure.
+
+Chiudi SEMPRE con una sezione finale intitolata "### Consigli della giornata" con 3-4 voci scelte
+tra quelle più interessanti viste sopra (mix di 1X2, risultato esatto, marcatore) — ogni voce con
+UNA riga che dice cosa e perché (es. "Atalanta vittoria (1) — probabilità stimata 83%, value 21%
+rispetto alla quota"). Scegli le voci con il segnale più forte (probabilità alta E/O value alto),
+non a caso. Poi chiudi con un promemoria breve e non moralistico che è uno strumento di analisi,
+non un consiglio di gioco.`
 
 type MatchRow = {
   id: number

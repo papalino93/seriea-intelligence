@@ -15,6 +15,7 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://seriea-intelligence.vercel.app'),
   title: 'Serie A Intelligence',
   description: 'Dashboard privata di analisi Serie A',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Serie A Intel' },
