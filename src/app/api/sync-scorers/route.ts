@@ -8,9 +8,16 @@ export const maxDuration = 60
 
 // Stagione precedente completa (storico affidabile) + stagione corrente (che
 // all'inizio ha zero partite giocate, ma via via che la stagione avanza
-// contribuisce dati più recenti) — sommati, così il tasso si aggiorna da solo
-// senza bisogno di gestire a mano la transizione tra stagioni.
-const SEASONS_TO_BLEND = [2024, 2025]
+// contribuisce dati più recenti, inclusi i nuovi arrivati senza storico
+// Serie A) — sommati, così il tasso si aggiorna da solo. Calcolato dalla data
+// corrente invece di anni scritti a mano: la Serie A parte ad agosto, quindi
+// da gennaio a luglio la stagione "corrente" è ancora quella iniziata
+// l'agosto precedente.
+function currentSerieASeasonYear(): number {
+  const now = new Date()
+  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+}
+const SEASONS_TO_BLEND = [currentSerieASeasonYear() - 1, currentSerieASeasonYear()]
 
 /** Fase 6: Marcatori. Stima gol/partita per giocatore da dati storici reali (mai inventati). */
 export async function POST(request: Request) {
