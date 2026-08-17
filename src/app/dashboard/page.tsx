@@ -105,6 +105,9 @@ export default async function DashboardPage() {
             <Link href="/dashboard/schedina" className="font-mono text-xs text-text-secondary underline">
               schedina virtuale
             </Link>
+            <Link href="/dashboard/backtest" className="font-mono text-xs text-text-secondary underline">
+              backtesting
+            </Link>
             {profile?.role === 'admin' && (
               <Link href="/dashboard/admin" className="font-mono text-xs text-text-secondary underline">
                 pannello admin
