@@ -319,7 +319,13 @@ export default async function DashboardPage({
                   h2: (p) => <h3 className="mt-4 mb-2 font-display text-lg first:mt-0" {...p} />,
                   h3: (p) => <h4 className="mt-4 mb-2 font-display text-base first:mt-0" {...p} />,
                   p: (p) => <p className="mb-3" {...p} />,
-                  strong: (p) => <strong className="text-accent-gold" {...p} />,
+                  // font-mono, non il bold di default del tag <strong>: i numeri (percentuali,
+                  // quote, risultati) sono sempre in grassetto nel testo IA, e altrove nell'app
+                  // (ProbBlock, OddsPill, ecc.) i numeri sono sempre in IBM Plex Mono — qui
+                  // finivano nel font body normale (Inter), stonando col resto. Font-medium
+                  // invece di lasciare il bold di default: IBM Plex Mono qui è caricato solo nei
+                  // pesi 400/500, un 700 verrebbe simulato dal browser (bold finto, meno nitido).
+                  strong: (p) => <strong className="font-mono font-medium text-accent-gold" {...p} />,
                   em: (p) => <em className="text-text-secondary not-italic" {...p} />,
                   ul: (p) => <ul className="mb-3 list-disc space-y-1 pl-5" {...p} />,
                   li: (p) => <li {...p} />,
