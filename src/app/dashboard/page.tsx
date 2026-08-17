@@ -84,6 +84,10 @@ export default async function DashboardPage() {
     .limit(1)
     .maybeSingle()
 
+  const { data: roundSummary } = roundId
+    ? await supabase.from('round_summaries').select('summary_text, generated_at').eq('round_id', roundId).maybeSingle()
+    : { data: null }
+
   const roundNumber =
     (nextMatch as { rounds: { round_number: number } | null } | null)?.rounds?.round_number ?? '—'
 
@@ -118,6 +122,23 @@ export default async function DashboardPage() {
             )}
           </div>
         </header>
+
+        {roundSummary?.summary_text && (
+          <div className="mb-6 rounded-lg border border-border bg-surface p-5">
+            <p className="font-mono text-xs uppercase tracking-[0.2em] text-text-secondary">
+              Commento della giornata
+            </p>
+            <div className="mt-3 space-y-3 text-sm leading-relaxed text-text-primary">
+              {roundSummary.summary_text.split('\n').filter(Boolean).map((para: string, i: number) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
+            <p className="mt-4 font-mono text-[10px] text-text-secondary">
+              Generato da un modello linguistico a partire dai numeri già calcolati dal nostro
+              motore statistico — {new Date(roundSummary.generated_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}
+            </p>
+          </div>
+        )}
 
         {!matches?.length && (
           <p className="rounded-lg border border-border bg-surface p-6 text-sm text-text-secondary">

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value' | 'scorers' | 'notify'
+type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value' | 'scorers' | 'notify' | 'summary'
 
 const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
   calendar: {
@@ -47,6 +47,12 @@ const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: s
     label: 'Invia notifiche',
     loadingLabel: 'Invio…',
     formatSuccess: (j) => `${j.sent} nuovi segnali notificati${j.recipients ? ` a ${j.recipients} utenti` : ''}`,
+  },
+  summary: {
+    endpoint: '/api/generate-summary',
+    label: 'Genera commento IA',
+    loadingLabel: 'Generazione…',
+    formatSuccess: (j) => `commento generato per ${j.matches} partite (${j.length} caratteri)`,
   },
 }
 

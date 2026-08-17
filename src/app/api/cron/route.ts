@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     { name: 'marcatori', endpoint: '/api/sync-scorers' },
     { name: 'previsioni', endpoint: '/api/compute-predictions' },
     { name: 'value', endpoint: '/api/compute-value' },
+    { name: 'commento IA', endpoint: '/api/generate-summary' },
     { name: 'notifiche', endpoint: '/api/notify' },
   ]
 
