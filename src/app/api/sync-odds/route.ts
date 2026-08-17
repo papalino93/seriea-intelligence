@@ -126,6 +126,46 @@ export async function POST(request: Request) {
       }
     }
 
+    // ---- Rilevamento variazione quota significativa (Fase 11): confronta la
+    // migliore quota per esito PRIMA di questo sync con quella nuova, prima
+    // di marcare le righe vecchie come storiche (altrimenti perdiamo il valore
+    // "prima"). Soglia 15%: sotto è normale oscillazione, sopra è degno di nota.
+    const MOVEMENT_THRESHOLD = 0.15
+    let significantMovements = 0
+    if (matchedMatchIds.size > 0) {
+      const { data: previousOdds } = await admin
+        .from('odds')
+        .select('match_id, outcome, value')
+        .in('match_id', Array.from(matchedMatchIds))
+        .eq('is_current', true)
+
+      const previousBest = new Map<string, number>()
+      for (const o of previousOdds ?? []) {
+        const key = `${o.match_id}:${o.outcome}`
+        previousBest.set(key, Math.max(previousBest.get(key) ?? 0, o.value))
+      }
+      const newBest = new Map<string, number>()
+      for (const r of oddsRows) {
+        const key = `${r.match_id}:${r.outcome}`
+        newBest.set(key, Math.max(newBest.get(key) ?? 0, r.value))
+      }
+
+      const movementRows: { match_id: number; outcome: string; old_value: number; new_value: number; pct_change: number }[] = []
+      for (const [key, newValue] of newBest) {
+        const oldValue = previousBest.get(key)
+        if (!oldValue) continue // prima volta che vediamo quote per questa partita: non è una "variazione"
+        const pctChange = (newValue - oldValue) / oldValue
+        if (Math.abs(pctChange) >= MOVEMENT_THRESHOLD) {
+          const [matchIdStr, outcome] = key.split(':')
+          movementRows.push({ match_id: Number(matchIdStr), outcome, old_value: oldValue, new_value: newValue, pct_change: pctChange })
+        }
+      }
+      if (movementRows.length > 0) {
+        await admin.from('odds_movements').insert(movementRows)
+        significantMovements = movementRows.length
+      }
+    }
+
     // ---- Append-only: le righe correnti diventano storiche, poi si inseriscono le nuove ----
     if (matchedMatchIds.size > 0) {
       const { error: staleError } = await admin
@@ -146,10 +186,17 @@ export async function POST(request: Request) {
       sync_type: 'odds',
       status: 'success',
       requests_used: requestsUsed,
-      message: `${matchedMatchIds.size} partite con quote aggiornate (${oddsRows.length} righe), ${unmatchedEvents} eventi non abbinati`,
+      message: `${matchedMatchIds.size} partite con quote aggiornate (${oddsRows.length} righe), ${unmatchedEvents} eventi non abbinati, ${significantMovements} variazioni significative`,
     })
 
-    return NextResponse.json({ ok: true, matched: matchedMatchIds.size, unmatchedEvents, oddsRows: oddsRows.length, requestsUsed })
+    return NextResponse.json({
+      ok: true,
+      matched: matchedMatchIds.size,
+      unmatchedEvents,
+      oddsRows: oddsRows.length,
+      significantMovements,
+      requestsUsed,
+    })
   } catch (err) {
     const message = extractErrorMessage(err)
     await admin.from('sync_logs').insert({
