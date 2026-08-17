@@ -89,7 +89,7 @@ export default function LoginPage() {
             </p>
 
             <label htmlFor="code" className="mt-6 block font-mono text-xs text-text-secondary">
-              Codice a 6 cifre
+              Codice ricevuto via email
             </label>
             <input
               id="code"
@@ -100,7 +100,7 @@ export default function LoginPage() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-center text-lg tracking-[0.3em] outline-none focus:border-accent-pitch"
-              placeholder="000000"
+              placeholder="00000000"
             />
 
             <button
