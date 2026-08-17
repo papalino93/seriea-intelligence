@@ -63,6 +63,32 @@ export async function fetchSeasonMatchesForYear(year: number | null): Promise<Se
   return { competition: json.competition, matches: json.matches as FootballDataMatch[] }
 }
 
+export interface ScorerEntry {
+  player: { id: number; name: string }
+  team: { id: number }
+  goals: number
+  playedMatches: number
+  assists: number | null
+}
+
+/**
+ * 1 richiesta. Top marcatori per stagione (fino a 100). Usato per stimare il
+ * tasso di gol/partita per giocatore — non è gol/90' vero (non abbiamo i
+ * minuti giocati, solo le presenze), va dichiarato come approssimazione.
+ */
+export async function fetchTopScorers(year: number): Promise<ScorerEntry[]> {
+  const res = await fetch(`${BASE_URL}/competitions/${SERIE_A_COMPETITION_CODE}/scorers?season=${year}&limit=100`, {
+    headers: authHeaders(),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`football-data.org /scorers?season=${year}: HTTP ${res.status} ${body}`)
+  }
+  const json = await res.json()
+  return json.scorers as ScorerEntry[]
+}
+
 /** Normalizza gli stati di football-data.org sul nostro enum interno. */
 export function mapMatchStatus(status: string): 'scheduled' | 'live' | 'finished' | 'postponed' {
   if (['IN_PLAY', 'PAUSED'].includes(status)) return 'live'

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value'
+type Variant = 'calendar' | 'odds' | 'historical' | 'predictions' | 'value' | 'scorers'
 
 const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: string; formatSuccess: (json: Record<string, unknown>) => string }> = {
   calendar: {
@@ -35,6 +35,12 @@ const CONFIG: Record<Variant, { endpoint: string; label: string; loadingLabel: s
     label: 'Ricalcola value',
     loadingLabel: 'Calcolo in corso…',
     formatSuccess: (j) => `${j.computed} segnali calcolati, ${j.valueCount} con edge ≥ 3 punti`,
+  },
+  scorers: {
+    endpoint: '/api/sync-scorers',
+    label: 'Aggiorna marcatori',
+    loadingLabel: 'Sincronizzazione…',
+    formatSuccess: (j) => `${j.scorers} marcatori sincronizzati`,
   },
 }
 

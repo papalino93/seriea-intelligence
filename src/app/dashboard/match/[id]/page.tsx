@@ -47,6 +47,8 @@ type ValueSignal = {
 // statistico del modello, non segnalare ogni minima differenza come opportunità.
 const VALUE_EDGE_THRESHOLD = 0.03
 
+type Scorer = { name: string; goals: number; played_matches: number }
+
 type FormMatch = {
   id: number
   kickoff_at: string
@@ -88,7 +90,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
     .select('outcome, model_probability, implied_probability, best_odds, bookmaker_name, edge, ev')
     .eq('match_id', id)
 
-  const [headToHead, homeForm, awayForm] = await Promise.all([
+  const [headToHead, homeForm, awayForm, homeScorers, awayScorers] = await Promise.all([
     homeId && awayId
       ? supabase
           .from('matches')
@@ -118,6 +120,22 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           .order('kickoff_at', { ascending: false })
           .limit(5)
       : { data: [] as FormMatch[] },
+    homeId
+      ? supabase
+          .from('player_scorers')
+          .select('name, goals, played_matches')
+          .eq('team_id', homeId)
+          .order('goals', { ascending: false })
+          .limit(5)
+      : { data: [] as Scorer[] },
+    awayId
+      ? supabase
+          .from('player_scorers')
+          .select('name, goals, played_matches')
+          .eq('team_id', awayId)
+          .order('goals', { ascending: false })
+          .limit(5)
+      : { data: [] as Scorer[] },
   ])
 
   const kickoff = new Date(m.kickoff_at)
@@ -171,6 +189,13 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           )
         )}
 
+        <ScorersSection
+          homeTeamName={m.home_team?.name ?? 'squadra casa'}
+          awayTeamName={m.away_team?.name ?? 'squadra trasferta'}
+          homeScorers={(homeScorers.data as Scorer[] | null) ?? []}
+          awayScorers={(awayScorers.data as Scorer[] | null) ?? []}
+        />
+
         <Section title="Precedenti">
           <MatchList matches={(headToHead.data as FormMatch[] | null) ?? []} empty="Nessun precedente trovato." />
         </Section>
@@ -190,6 +215,62 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         </p>
       </div>
     </main>
+  )
+}
+
+function ScorersSection({
+  homeTeamName,
+  awayTeamName,
+  homeScorers,
+  awayScorers,
+}: {
+  homeTeamName: string
+  awayTeamName: string
+  homeScorers: Scorer[]
+  awayScorers: Scorer[]
+}) {
+  if (homeScorers.length === 0 && awayScorers.length === 0) return null
+
+  return (
+    <div className="mt-8">
+      <h2 className="font-display text-sm text-text-secondary">Marcatori probabili</h2>
+      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ScorerList teamName={homeTeamName} scorers={homeScorers} />
+        <ScorerList teamName={awayTeamName} scorers={awayScorers} />
+      </div>
+      <p className="mt-2 font-mono text-xs text-text-secondary">
+        Stima indicativa: gol/partita giocata sulle ultime stagioni (non gol/90&apos;, non abbiamo i
+        minuti giocati) convertito in probabilità con un semplice modello di Poisson, senza
+        aggiustamento per la difesa avversaria — meno preciso delle previsioni di squadra, va preso
+        come indicazione di massima.
+      </p>
+    </div>
+  )
+}
+
+function ScorerList({ teamName, scorers }: { teamName: string; scorers: Scorer[] }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface p-4">
+      <p className="font-mono text-xs text-text-secondary">{teamName}</p>
+      {scorers.length === 0 ? (
+        <p className="mt-2 font-mono text-xs text-text-secondary">Dati non disponibili.</p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {scorers.map((s) => {
+            const rate = s.played_matches > 0 ? s.goals / s.played_matches : 0
+            const scoreProbability = 1 - Math.exp(-rate)
+            return (
+              <div key={s.name} className="flex items-center justify-between font-mono text-xs">
+                <span>{s.name}</span>
+                <span className="text-text-secondary">
+                  {s.goals}/{s.played_matches} · <span className="text-accent-gold">{(scoreProbability * 100).toFixed(0)}%</span>
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
