@@ -39,7 +39,17 @@ export function pickScorerSuggestions<T extends { name: string; goals: number; c
   const activeThisSeason = scorers.filter((s) => s.current_season_matches > 0)
   const pool = activeThisSeason.length > 0 ? activeThisSeason : scorers
 
-  const top = pool.slice(0, 3).map((s) => s.name)
-  const underdog = pool.length > 3 ? pool[pool.length - 1].name : null
-  return { top, underdog }
+  const top = pool.slice(0, 3)
+  const topNames = top.map((s) => s.name)
+
+  // L'outsider deve avere davvero meno gol del gruppo dei papabili, non solo
+  // essere 4° per posizione: con dei pari merito (es. due giocatori a 11 gol)
+  // "l'ultimo della lista" può essere un titolare quasi alla pari col 3°
+  // papabile, non un vero outsider — a parità di gol col gruppo di testa non
+  // proponiamo nessun outsider piuttosto che proporne uno finto.
+  const minTopGoals = top.length > 0 ? top[top.length - 1].goals : Infinity
+  const belowTop = pool.slice(3).filter((s) => s.goals < minTopGoals)
+  const underdog = belowTop.length > 0 ? belowTop[belowTop.length - 1].name : null
+
+  return { top: topNames, underdog }
 }
