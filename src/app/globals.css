@@ -3,19 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-feature-settings: 'tnum' 1;
+}
+
+@layer components {
+  /* Elemento distintivo della dashboard: il numero di giornata trattato come
+     un digit da tabellone segnapunti da stadio, non come una card generica. */
+  .scoreboard-digit {
+    @apply font-mono text-6xl font-medium tabular-nums text-accent-pitch;
+    letter-spacing: 0.02em;
+    text-shadow: 0 0 24px rgba(63, 166, 107, 0.25);
+  }
 }
