@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import {
-  fetchCurrentSeasonYear,
-  fetchSeasonFixtures,
-  mapFixtureStatus,
-  SERIE_A_LEAGUE_ID,
-  type ApiFootballFixture,
-} from '@/lib/api-football'
+import { fetchSeasonMatches, mapMatchStatus, type FootballDataTeam } from '@/lib/football-data'
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
+async function upsertTeam(admin: AdminClient, team: FootballDataTeam) {
+  const { data } = await admin
+    .from('teams')
+    .upsert({ external_id: team.id, name: team.name, logo_url: team.crest }, { onConflict: 'external_id' })
+    .select()
+    .single()
+  return data
+}
 
 /**
- * Sincronizza calendario, squadre e giornate di Serie A da API-Football.
- * Budget: 2 richieste API-Football per esecuzione (leghe + fixtures) —
- * ampiamente dentro il tier gratuito di 100/giorno anche eseguita più volte.
+ * Sincronizza calendario, squadre e giornate di Serie A da football-data.org.
+ * Budget: 1 richiesta per esecuzione — ampiamente dentro il tier gratuito
+ * (10 richieste/minuto, nessun limite giornaliero).
  *
  * Autorizzazione, due percorsi:
  *  1. Sessione utente con ruolo admin (pulsante nel pannello admin).
@@ -50,69 +55,41 @@ export async function POST(request: Request) {
   let requestsUsed = 0
 
   try {
-    const year = await fetchCurrentSeasonYear()
+    const { competition: apiCompetition, matches } = await fetchSeasonMatches()
     requestsUsed += 1
 
     const { data: competition, error: compError } = await admin
       .from('competitions')
       .upsert(
-        { api_football_id: SERIE_A_LEAGUE_ID, name: 'Serie A', country: 'Italy' },
-        { onConflict: 'api_football_id' }
+        { external_id: apiCompetition.id, name: apiCompetition.name, country: 'Italy' },
+        { onConflict: 'external_id' }
       )
       .select()
       .single()
     if (compError) throw compError
 
+    const seasonInfo = matches[0]?.season
+    const seasonYear = seasonInfo ? new Date(seasonInfo.startDate).getFullYear() : new Date().getFullYear()
+    const seasonExternalId = seasonInfo?.id ?? apiCompetition.id * 10000 + seasonYear
+
     const { data: season, error: seasonError } = await admin
       .from('seasons')
       .upsert(
-        {
-          competition_id: competition.id,
-          year,
-          api_football_id: SERIE_A_LEAGUE_ID * 10000 + year,
-          is_current: true,
-        },
+        { competition_id: competition.id, year: seasonYear, external_id: seasonExternalId, is_current: true },
         { onConflict: 'competition_id,year' }
       )
       .select()
       .single()
     if (seasonError) throw seasonError
 
-    const fixtures = await fetchSeasonFixtures(year)
-    requestsUsed += 1
+    for (const m of matches) {
+      const homeTeam = await upsertTeam(admin, m.homeTeam)
+      const awayTeam = await upsertTeam(admin, m.awayTeam)
 
-    for (const fx of fixtures as ApiFootballFixture[]) {
-      const { data: homeTeam } = await admin
-        .from('teams')
-        .upsert(
-          {
-            api_football_id: fx.teams.home.id,
-            name: fx.teams.home.name,
-            logo_url: fx.teams.home.logo,
-          },
-          { onConflict: 'api_football_id' }
-        )
-        .select()
-        .single()
-
-      const { data: awayTeam } = await admin
-        .from('teams')
-        .upsert(
-          {
-            api_football_id: fx.teams.away.id,
-            name: fx.teams.away.name,
-            logo_url: fx.teams.away.logo,
-          },
-          { onConflict: 'api_football_id' }
-        )
-        .select()
-        .single()
-
-      const roundNumber = parseInt(fx.league.round.replace(/\D/g, ''), 10) || 0
       const { data: round } = await admin
         .from('rounds')
         .upsert(
-          { season_id: season.id, round_number: roundNumber, label: fx.league.round },
+          { season_id: season.id, round_number: m.matchday, label: `Giornata ${m.matchday}` },
           { onConflict: 'season_id,round_number' }
         )
         .select()
@@ -120,35 +97,35 @@ export async function POST(request: Request) {
 
       await admin.from('matches').upsert(
         {
-          api_football_id: fx.fixture.id,
+          external_id: m.id,
           season_id: season.id,
           round_id: round?.id ?? null,
           home_team_id: homeTeam?.id,
           away_team_id: awayTeam?.id,
-          kickoff_at: fx.fixture.date,
-          venue: fx.fixture.venue?.name ?? null,
-          status: mapFixtureStatus(fx.fixture.status.short),
-          home_score: fx.goals.home,
-          away_score: fx.goals.away,
+          kickoff_at: m.utcDate,
+          venue: m.venue,
+          status: mapMatchStatus(m.status),
+          home_score: m.score.fullTime.home,
+          away_score: m.score.fullTime.away,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'api_football_id' }
+        { onConflict: 'external_id' }
       )
     }
 
     await admin.from('sync_logs').insert({
-      source: 'api-football',
+      source: 'football-data.org',
       sync_type: 'calendar',
       status: 'success',
       requests_used: requestsUsed,
-      message: `${fixtures.length} partite sincronizzate (stagione ${year})`,
+      message: `${matches.length} partite sincronizzate (stagione ${seasonYear})`,
     })
 
-    return NextResponse.json({ ok: true, matches: fixtures.length, requestsUsed })
+    return NextResponse.json({ ok: true, matches: matches.length, requestsUsed })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'errore sconosciuto'
     await admin.from('sync_logs').insert({
-      source: 'api-football',
+      source: 'football-data.org',
       sync_type: 'calendar',
       status: 'error',
       requests_used: requestsUsed,

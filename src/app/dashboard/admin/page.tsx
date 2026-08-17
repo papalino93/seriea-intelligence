@@ -30,7 +30,7 @@ export default async function AdminPage() {
         <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-text-secondary">Admin</p>
         <h1 className="mt-2 font-display text-2xl">Sincronizzazione dati</h1>
         <p className="mt-1 text-sm text-text-secondary">
-          Recupera calendario, squadre e giornate da API-Football (2 richieste per esecuzione).
+          Recupera calendario, squadre e giornate da football-data.org (1 richiesta per esecuzione).
         </p>
 
         <SyncButton />

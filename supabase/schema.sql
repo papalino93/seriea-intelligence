@@ -16,7 +16,7 @@ create table public.profiles (
 -- ---------- Anagrafica calcio ----------
 create table public.competitions (
   id serial primary key,
-  api_football_id integer unique not null,
+  external_id integer unique not null,
   name text not null,
   country text not null default 'Italy',
   logo_url text
@@ -26,14 +26,14 @@ create table public.seasons (
   id serial primary key,
   competition_id integer not null references public.competitions(id) on delete cascade,
   year integer not null,
-  api_football_id integer unique not null,
+  external_id integer unique not null,
   is_current boolean not null default false,
   unique (competition_id, year)
 );
 
 create table public.teams (
   id serial primary key,
-  api_football_id integer unique not null,
+  external_id integer unique not null,
   name text not null,
   short_name text,
   logo_url text
@@ -49,7 +49,7 @@ create table public.rounds (
 
 create table public.matches (
   id serial primary key,
-  api_football_id integer unique not null,
+  external_id integer unique not null,
   season_id integer not null references public.seasons(id) on delete cascade,
   round_id integer references public.rounds(id) on delete set null,
   home_team_id integer not null references public.teams(id),
