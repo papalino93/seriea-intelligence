@@ -44,6 +44,14 @@ export async function POST(request: Request) {
       number,
       { name: string; teamExternalId: number; goals: number; playedMatches: number; assists: number }
     >()
+    // Presenze SOLO nella stagione in corso (non sommate allo storico): serve
+    // a distinguere chi è ancora nelle rotazioni adesso da chi ha un buon
+    // passato ma non gioca più (es. un giocatore fuori rosa) — l'endpoint
+    // marcatori include un giocatore solo se ha già segnato in quella
+    // stagione, quindi è un proxy onesto di "sta segnando quest'anno", non di
+    // "ha giocato" in senso generico (non abbiamo dati sulle presenze pure).
+    const currentSeasonMatchesByPlayer = new Map<number, number>()
+    const currentYear = currentSerieASeasonYear()
 
     for (const year of SEASONS_TO_BLEND) {
       let scorers: ScorerEntry[]
@@ -69,6 +77,9 @@ export async function POST(request: Request) {
             playedMatches: s.playedMatches,
             assists: s.assists ?? 0,
           })
+        }
+        if (year === currentYear) {
+          currentSeasonMatchesByPlayer.set(s.player.id, s.playedMatches)
         }
       }
     }
@@ -104,6 +115,7 @@ export async function POST(request: Request) {
         goals: p.goals,
         played_matches: p.playedMatches,
         assists: p.assists,
+        current_season_matches: currentSeasonMatchesByPlayer.get(externalId) ?? 0,
         updated_at: new Date().toISOString(),
       }))
 

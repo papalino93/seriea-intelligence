@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { VALUE_EDGE_THRESHOLD } from '@/lib/constants'
+import { VALUE_EDGE_THRESHOLD, recentFormCutoffDate, pickScorerSuggestions, type ScorerSuggestions } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +45,7 @@ type ValueSignal = {
 
 type OddsHistoryRow = { outcome: 'home' | 'draw' | 'away'; value: number; created_at: string }
 
-type Scorer = { name: string; goals: number; played_matches: number }
+type Scorer = { name: string; goals: number; played_matches: number; current_season_matches: number }
 
 type FormMatch = {
   id: number
@@ -102,6 +102,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
     .select('outcome, model_probability, implied_probability, best_odds, bookmaker_name, edge, ev')
     .eq('match_id', id)
 
+  const formCutoff = recentFormCutoffDate().toISOString()
+
   const [headToHead, homeForm, awayForm, homeScorers, awayScorers] = await Promise.all([
     homeId && awayId
       ? supabase
@@ -111,6 +113,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             `and(home_team_id.eq.${homeId},away_team_id.eq.${awayId}),and(home_team_id.eq.${awayId},away_team_id.eq.${homeId})`
           )
           .eq('status', 'finished')
+          .gte('kickoff_at', formCutoff)
           .order('kickoff_at', { ascending: false })
           .limit(5)
       : { data: [] as FormMatch[] },
@@ -120,6 +123,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           .select(FORM_SELECT)
           .eq('home_team_id', homeId)
           .eq('status', 'finished')
+          .gte('kickoff_at', formCutoff)
           .order('kickoff_at', { ascending: false })
           .limit(5)
       : { data: [] as FormMatch[] },
@@ -129,26 +133,27 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           .select(FORM_SELECT)
           .eq('away_team_id', awayId)
           .eq('status', 'finished')
+          .gte('kickoff_at', formCutoff)
           .order('kickoff_at', { ascending: false })
           .limit(5)
       : { data: [] as FormMatch[] },
     homeId
       ? supabase
           .from('player_scorers')
-          .select('name, goals, played_matches')
+          .select('name, goals, played_matches, current_season_matches')
           .eq('team_id', homeId)
           .eq('excluded', false)
           .order('goals', { ascending: false })
-          .limit(5)
+          .limit(8)
       : { data: [] as Scorer[] },
     awayId
       ? supabase
           .from('player_scorers')
-          .select('name, goals, played_matches')
+          .select('name, goals, played_matches, current_season_matches')
           .eq('team_id', awayId)
           .eq('excluded', false)
           .order('goals', { ascending: false })
-          .limit(5)
+          .limit(8)
       : { data: [] as Scorer[] },
   ])
 
@@ -225,15 +230,24 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         />
 
         <Section title="Precedenti">
-          <MatchList matches={(headToHead.data as FormMatch[] | null) ?? []} empty="Nessun precedente trovato." />
+          <MatchList
+            matches={(headToHead.data as FormMatch[] | null) ?? []}
+            empty="Nessun precedente in questa stagione o nella precedente."
+          />
         </Section>
 
         <Section title={`Ultime partite in casa — ${m.home_team?.name ?? 'squadra casa'}`}>
-          <MatchList matches={(homeForm.data as FormMatch[] | null) ?? []} empty="Dati non disponibili." />
+          <MatchList
+            matches={(homeForm.data as FormMatch[] | null) ?? []}
+            empty="Ancora nessuna partita giocata in questa stagione o nella precedente."
+          />
         </Section>
 
         <Section title={`Ultime partite in trasferta — ${m.away_team?.name ?? 'squadra trasferta'}`}>
-          <MatchList matches={(awayForm.data as FormMatch[] | null) ?? []} empty="Dati non disponibili." />
+          <MatchList
+            matches={(awayForm.data as FormMatch[] | null) ?? []}
+            empty="Ancora nessuna partita giocata in questa stagione o nella precedente."
+          />
         </Section>
 
         <p className="mt-8 font-mono text-xs text-text-secondary">
@@ -556,6 +570,8 @@ function RecommendedScoreSection({
 
   const showHomeScorer = favoriteTeamId != null && favoriteTeamId === homeTeamId && topScore.home > 0
   const showAwayScorer = favoriteTeamId != null && favoriteTeamId === awayTeamId && topScore.away > 0
+  const homeSuggestions = pickScorerSuggestions(homeScorers)
+  const awaySuggestions = pickScorerSuggestions(awayScorers)
 
   return (
     <div className="mt-8">
@@ -571,30 +587,31 @@ function RecommendedScoreSection({
           </span>
         </div>
         {(showHomeScorer || showAwayScorer) && (
-          <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 font-mono text-xs sm:grid-cols-2">
-            {showHomeScorer && (
-              <ScorerSuggestionRow teamName={homeTeamName} suggestion={homeScorers[0]?.name ?? null} />
-            )}
-            {showAwayScorer && (
-              <ScorerSuggestionRow teamName={awayTeamName} suggestion={awayScorers[0]?.name ?? null} />
-            )}
+          <div className="mt-3 grid grid-cols-1 gap-3 border-t border-border pt-3 font-mono text-xs sm:grid-cols-2">
+            {showHomeScorer && <ScorerSuggestionRow teamName={homeTeamName} suggestions={homeSuggestions} />}
+            {showAwayScorer && <ScorerSuggestionRow teamName={awayTeamName} suggestions={awaySuggestions} />}
           </div>
         )}
       </div>
       <p className="mt-2 font-mono text-xs text-text-secondary">
         {favoriteTeamId != null
-          ? 'Il marcatore è mostrato solo per la tua squadra preferita, e solo se il risultato consigliato prevede un suo gol — probabilità stimata, non garantita.'
-          : 'Imposta una squadra preferita in dashboard per vedere anche il marcatore consigliato quando gioca lei.'}
+          ? 'Marcatori mostrati solo per la tua squadra preferita, e solo se il risultato consigliato prevede un suo gol — papabili + un outsider, tutti da dati reali, non un pronostico garantito.'
+          : 'Imposta una squadra preferita in dashboard per vedere anche i marcatori consigliati quando gioca lei.'}
       </p>
     </div>
   )
 }
 
-function ScorerSuggestionRow({ teamName, suggestion }: { teamName: string; suggestion: string | null }) {
+function ScorerSuggestionRow({ teamName, suggestions }: { teamName: string; suggestions: ScorerSuggestions }) {
   return (
-    <div className="flex justify-between">
-      <span className="text-text-secondary">{teamName}</span>
-      <span className="text-text-primary">{suggestion ?? 'dato non disponibile'}</span>
+    <div>
+      <p className="text-text-secondary">{teamName}</p>
+      {suggestions.top.length === 0 ? (
+        <p className="mt-0.5 text-text-primary">dato non disponibile</p>
+      ) : (
+        <p className="mt-0.5 text-text-primary">papabili: {suggestions.top.join(', ')}</p>
+      )}
+      {suggestions.underdog && <p className="mt-0.5 text-accent-gold">outsider: {suggestions.underdog}</p>}
     </div>
   )
 }

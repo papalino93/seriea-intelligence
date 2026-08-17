@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/server'
+import { recentFormCutoffDate, pickScorerSuggestions, type ScorerSuggestions } from '@/lib/constants'
 import FavoriteTeamSection from './favorite-team-section'
 
 export const dynamic = 'force-dynamic'
@@ -38,9 +39,8 @@ type FavoriteTeamRecommendation = {
   homeScore: number
   awayScore: number
   probability: number
-  // string = marcatore consigliato, null = segna ma non abbiamo dati marcatori,
   // undefined = la squadra preferita non segna in questo risultato consigliato.
-  scorerSuggestion: string | null | undefined
+  scorerSuggestions: ScorerSuggestions | undefined
 }
 
 type ManageableScorer = { id: number; name: string; goals: number; excluded: boolean }
@@ -195,6 +195,7 @@ export default async function DashboardPage({
         )
         .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
         .eq('status', 'finished')
+        .gte('kickoff_at', recentFormCutoffDate().toISOString())
         .order('kickoff_at', { ascending: false })
         .limit(5),
     ])
@@ -213,12 +214,11 @@ export default async function DashboardPage({
           .maybeSingle(),
         supabase
           .from('player_scorers')
-          .select('name')
+          .select('name, goals, current_season_matches')
           .eq('team_id', teamId)
           .eq('excluded', false)
           .order('goals', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .limit(8),
       ])
       const topScore = (prediction?.top_scores as { home: number; away: number; probability: number }[] | undefined)?.[0]
       if (matchSides && topScore) {
@@ -231,7 +231,7 @@ export default async function DashboardPage({
           homeScore: topScore.home,
           awayScore: topScore.away,
           probability: topScore.probability,
-          scorerSuggestion: teamGoals > 0 ? (topScorer?.name ?? null) : undefined,
+          scorerSuggestions: teamGoals > 0 ? pickScorerSuggestions(topScorer ?? []) : undefined,
         }
       }
     }

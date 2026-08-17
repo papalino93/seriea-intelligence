@@ -15,6 +15,7 @@ type FavoriteTeamFormMatch = {
   home_team: { id: number; name: string } | null
   away_team: { id: number; name: string } | null
 }
+type ScorerSuggestions = { top: string[]; underdog: string | null }
 type FavoriteTeamRecommendation = {
   matchId: number
   opponentName: string
@@ -22,7 +23,7 @@ type FavoriteTeamRecommendation = {
   homeScore: number
   awayScore: number
   probability: number
-  scorerSuggestion: string | null | undefined
+  scorerSuggestions: ScorerSuggestions | undefined
 }
 type ManageableScorer = { id: number; name: string; goals: number; excluded: boolean }
 type FavoriteTeamData = {
@@ -110,18 +111,29 @@ export default function FavoriteTeamSection({
                   dettagli →
                 </Link>
               </div>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-2 flex items-center justify-between gap-2">
                 <span className="font-display text-lg">
                   {favoriteTeam.nextMatchRecommendation.homeScore}-{favoriteTeam.nextMatchRecommendation.awayScore}{' '}
                   <span className="font-mono text-xs text-accent-gold">
                     {(favoriteTeam.nextMatchRecommendation.probability * 100).toFixed(1)}%
                   </span>
                 </span>
-                <span className="font-mono text-xs text-text-secondary">
-                  {favoriteTeam.nextMatchRecommendation.scorerSuggestion === undefined
-                    ? `${favoriteTeam.name} non segna in questo risultato`
-                    : `marcatore ${favoriteTeam.name}: ${favoriteTeam.nextMatchRecommendation.scorerSuggestion ?? 'dato non disponibile'}`}
-                </span>
+              </div>
+              <div className="mt-2 font-mono text-xs text-text-secondary">
+                {favoriteTeam.nextMatchRecommendation.scorerSuggestions === undefined ? (
+                  <p>{favoriteTeam.name} non segna in questo risultato</p>
+                ) : (
+                  <>
+                    <p>
+                      papabili {favoriteTeam.name}: {favoriteTeam.nextMatchRecommendation.scorerSuggestions.top.join(', ') || 'dato non disponibile'}
+                    </p>
+                    {favoriteTeam.nextMatchRecommendation.scorerSuggestions.underdog && (
+                      <p className="text-accent-gold">
+                        outsider: {favoriteTeam.nextMatchRecommendation.scorerSuggestions.underdog}
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}
