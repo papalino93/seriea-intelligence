@@ -100,9 +100,23 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       }))
 
+    let staleDeleted = 0
     if (rows.length > 0) {
       const { error: insertError } = await admin.from('player_scorers').upsert(rows, { onConflict: 'external_id' })
       if (insertError) throw insertError
+
+      // L'upsert sopra aggiorna solo chi è ancora valido — non tocca righe
+      // vecchie di giocatori non più tornati in questo sync (trasferiti fuori
+      // Serie A, o semplicemente usciti dai top marcatori delle due stagioni
+      // considerate). Senza questa pulizia restano agganciati per sempre alla
+      // squadra dell'ultimo sync in cui comparivano.
+      const validExternalIds = rows.map((r) => r.external_id)
+      const { error: deleteError, count } = await admin
+        .from('player_scorers')
+        .delete({ count: 'exact' })
+        .not('external_id', 'in', `(${validExternalIds.join(',')})`)
+      if (deleteError) throw deleteError
+      staleDeleted = count ?? 0
     }
 
     await admin.from('sync_logs').insert({
@@ -110,7 +124,7 @@ export async function POST(request: Request) {
       sync_type: 'scorers',
       status: 'success',
       requests_used: requestsUsed,
-      message: `${rows.length} marcatori sincronizzati (stagioni ${SEASONS_TO_BLEND.join('+')}, squadra da rosa attuale), ${excludedNotInSquad} esclusi perché non più in Serie A`,
+      message: `${rows.length} marcatori sincronizzati (stagioni ${SEASONS_TO_BLEND.join('+')}, squadra da rosa attuale), ${excludedNotInSquad} esclusi perché non più in Serie A, ${staleDeleted} righe vecchie rimosse`,
     })
 
     return NextResponse.json({ ok: true, scorers: rows.length, requestsUsed })
