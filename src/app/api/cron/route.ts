@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     { name: 'marcatori', endpoint: '/api/sync-scorers' },
     { name: 'previsioni', endpoint: '/api/compute-predictions' },
     { name: 'value', endpoint: '/api/compute-value' },
+    { name: 'notifiche', endpoint: '/api/notify' },
   ]
 
   const results: { name: string; ok: boolean; detail: string }[] = []

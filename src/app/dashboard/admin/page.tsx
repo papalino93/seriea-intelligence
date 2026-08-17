@@ -55,6 +55,7 @@ export default async function AdminPage() {
           <SyncButton variant="predictions" />
           <SyncButton variant="value" />
           <SyncButton variant="scorers" />
+          <SyncButton variant="notify" />
         </div>
 
         <h2 className="mt-10 font-display text-sm text-text-secondary">Consumi API (ultime 24h)</h2>
