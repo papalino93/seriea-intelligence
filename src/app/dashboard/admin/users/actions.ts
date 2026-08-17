@@ -40,6 +40,32 @@ export async function inviteUser(email: string) {
   return { ok: true }
 }
 
+/**
+ * Elimina un utente — serve tipicamente per un invito rovinato (email persa,
+ * cancellata per errore, link scaduto): cancellandolo si può reinvitare da
+ * zero con lo stesso indirizzo, cosa che altrimenti fallisce ("utente già esistente").
+ */
+export async function deleteUser(userId: string) {
+  try {
+    await assertAdmin()
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'errore' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser()
+  if (currentUser?.id === userId) return { error: 'non puoi eliminare te stesso' }
+
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.deleteUser(userId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/admin/users')
+  return { ok: true }
+}
+
 /** Cambia il ruolo di un utente esistente (admin/user). */
 export async function updateUserRole(userId: string, role: 'admin' | 'user') {
   try {

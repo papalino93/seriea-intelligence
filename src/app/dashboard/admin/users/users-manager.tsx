@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { inviteUser, updateUserRole } from './actions'
+import { inviteUser, updateUserRole, deleteUser } from './actions'
 
 type Profile = { id: string; email: string; role: string; created_at: string }
 
@@ -30,6 +30,17 @@ export default function UsersManager({ users, currentUserId }: { users: Profile[
   async function handleRoleChange(userId: string, role: 'admin' | 'user') {
     await updateUserRole(userId, role)
     router.refresh()
+  }
+
+  async function handleDelete(userId: string, email: string) {
+    if (!confirm(`Eliminare ${email}? Utile se l'invito è andato perso — potrai reinvitarlo subito dopo.`)) return
+    const res = await deleteUser(userId)
+    if ('error' in res && res.error) {
+      setMessage(res.error)
+      setStatus('error')
+    } else {
+      router.refresh()
+    }
   }
 
   return (
@@ -73,15 +84,26 @@ export default function UsersManager({ users, currentUserId }: { users: Profile[
                 {u.id === currentUserId && ' · tu'}
               </p>
             </div>
-            <select
-              value={u.role}
-              disabled={u.id === currentUserId}
-              onChange={(e) => handleRoleChange(u.id, e.target.value as 'admin' | 'user')}
-              className="rounded-md border border-border bg-bg px-2 py-1 font-mono text-xs outline-none focus:border-accent-pitch disabled:opacity-50"
-            >
-              <option value="user">user</option>
-              <option value="admin">admin</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={u.role}
+                disabled={u.id === currentUserId}
+                onChange={(e) => handleRoleChange(u.id, e.target.value as 'admin' | 'user')}
+                className="rounded-md border border-border bg-bg px-2 py-1 font-mono text-xs outline-none focus:border-accent-pitch disabled:opacity-50"
+              >
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+              {u.id !== currentUserId && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(u.id, u.email)}
+                  className="rounded-md border border-accent-danger/40 px-2 py-1 font-mono text-xs text-accent-danger hover:bg-accent-danger/10"
+                >
+                  elimina
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
