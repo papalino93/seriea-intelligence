@@ -24,18 +24,18 @@ Regole di linguaggio non negoziabili:
 - Markdown semplice per la struttura (### per i titoli, **grassetto** per numeri/nomi chiave,
   elenchi puntati dove utile) — verrà renderizzato correttamente, quindi usalo pure.
 - PER OGNI PARTITA (anche quelle nel riepilogo breve, non solo i big match), menziona il
-  "risultato_esatto_consigliato" e — SOLO SE presente nei dati (i campi
-  marcatore_consigliato_*_SE_segna_in_quel_risultato non sono null) — il marcatore consigliato per
-  quella squadra. Se il campo è null, quella squadra non segna nel risultato consigliato: NON
-  proporre un marcatore per lei in quel caso, sarebbe contraddittorio. Usa esattamente i valori che
-  ricevi, non calcolarli né aggiustarli tu.
+  "risultato_esatto_consigliato". Usa esattamente il valore che ricevi, non calcolarlo né
+  aggiustarlo tu.
+- MAI nominare un marcatore specifico o un giocatore per nome: non riceverai dati sui marcatori in
+  questo prompt (deliberatamente — senza una fonte per infortuni/squalifiche un nome potrebbe
+  essere sbagliato, es. un giocatore già ceduto ad un'altra squadra). Resta sui numeri di squadra.
 
 Chiudi SEMPRE con una sezione finale intitolata "### Consigli della giornata" con 3-4 voci scelte
-tra quelle più interessanti viste sopra (mix di 1X2, risultato esatto, marcatore) — ogni voce con
-UNA riga che dice cosa e perché (es. "Atalanta vittoria (1) — probabilità stimata 83%, value 21%
-rispetto alla quota"). Scegli le voci con il segnale più forte (probabilità alta E/O value alto),
-non a caso. Poi chiudi con un promemoria breve e non moralistico che è uno strumento di analisi,
-non un consiglio di gioco.`
+tra quelle più interessanti viste sopra (mix di 1X2 e risultato esatto, MAI marcatori) — ogni voce
+con UNA riga che dice cosa e perché (es. "Atalanta vittoria (1) — probabilità stimata 83%, value
+21% rispetto alla quota"). Scegli le voci con il segnale più forte (probabilità alta E/O value
+alto), non a caso. Poi chiudi con un promemoria breve e non moralistico che è uno strumento di
+analisi, non un consiglio di gioco.`
 
 type MatchRow = {
   id: number
@@ -93,20 +93,13 @@ export async function POST(request: Request) {
       ? await admin.from('value_signals').select('*').in('match_id', matchIds).gte('edge', VALUE_EDGE_THRESHOLD)
       : { data: [] }
 
-    const teamIds = new Set<number>()
-    for (const m of (matches as unknown as MatchRow[]) ?? []) {
-      if (m.home_team) teamIds.add(m.home_team.id)
-      if (m.away_team) teamIds.add(m.away_team.id)
-    }
-    const { data: scorers } = teamIds.size
-      ? await admin
-          .from('player_scorers')
-          .select('name, team_id, goals, played_matches')
-          .in('team_id', Array.from(teamIds))
-          .order('goals', { ascending: false })
-      : { data: [] }
-
     // ---- Costruisce il payload strutturato per Gemini (dati, non prosa) ----
+    // Niente marcatori qui: questo commento è condiviso da tutti gli utenti
+    // (non sappiamo la squadra preferita di chi legge), e senza una fonte
+    // dati per infortuni/squalifiche un nome sbagliato (es. un giocatore
+    // ceduto) finirebbe nel testo per tutti. I marcatori restano solo nelle
+    // viste personalizzate (squadra preferita, pagina partita), dove un
+    // admin può escludere manualmente un giocatore indisponibile.
     const predictionByMatch = new Map((predictions ?? []).map((p) => [p.match_id, p]))
     const valueByMatch = new Map<number, typeof valueSignals>()
     for (const v of valueSignals ?? []) {
@@ -114,30 +107,11 @@ export async function POST(request: Request) {
       arr.push(v)
       valueByMatch.set(v.match_id, arr)
     }
-    const scorersByTeam = new Map<number, { name: string; goals: number; played_matches: number }[]>()
-    for (const s of scorers ?? []) {
-      if (!s.team_id) continue
-      const arr = scorersByTeam.get(s.team_id) ?? []
-      arr.push({ name: s.name, goals: s.goals, played_matches: s.played_matches })
-      scorersByTeam.set(s.team_id, arr)
-    }
 
     const payload = ((matches as unknown as MatchRow[]) ?? []).map((m) => {
       const p = predictionByMatch.get(m.id)
       const v = valueByMatch.get(m.id) ?? []
-      const homeScorers = scorersByTeam.get(m.home_team?.id ?? -1) ?? []
-      const awayScorers = scorersByTeam.get(m.away_team?.id ?? -1) ?? []
-
-      // Risultato esatto consigliato = quello più probabile dal modello. Il
-      // marcatore consigliato per squadra è condizionato: proponiamo un nome
-      // SOLO se quel risultato prevede almeno un gol per quella squadra —
-      // altrimenti sarebbe un suggerimento contraddittorio (marcatore in una
-      // squadra che nel risultato consigliato non segna).
       const topScore = p?.top_scores?.[0] as { home: number; away: number; probability: number } | undefined
-      const homeScorerSuggestion =
-        topScore && topScore.home > 0 ? (homeScorers[0]?.name ?? 'nessun dato marcatori disponibile') : null
-      const awayScorerSuggestion =
-        topScore && topScore.away > 0 ? (awayScorers[0]?.name ?? 'nessun dato marcatori disponibile') : null
 
       return {
         partita: `${m.home_team?.name ?? '—'} vs ${m.away_team?.name ?? '—'}`,
@@ -147,16 +121,12 @@ export async function POST(request: Request) {
         gol_gol: p ? { si: p.btts_yes, no: p.btts_no } : 'non disponibile',
         risultati_esatti_top3: p ? p.top_scores?.slice(0, 3) : 'non disponibile',
         risultato_esatto_consigliato: topScore ? `${topScore.home}-${topScore.away}` : 'non disponibile',
-        marcatore_consigliato_casa_SE_segna_in_quel_risultato: homeScorerSuggestion,
-        marcatore_consigliato_trasferta_SE_segna_in_quel_risultato: awayScorerSuggestion,
         possibili_value: v.map((s: NonNullable<typeof valueSignals>[number]) => ({
           esito: s.outcome,
           edge_punti_percentuali: (s.edge * 100).toFixed(1),
           quota: s.best_odds,
           bookmaker: s.bookmaker_name,
         })),
-        marcatori_probabili_casa: homeScorers.slice(0, 3),
-        marcatori_probabili_trasferta: awayScorers.slice(0, 3),
       }
     })
 

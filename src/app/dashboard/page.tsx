@@ -31,6 +31,20 @@ type FavoriteTeamFormMatch = {
   home_team: { id: number; name: string } | null
   away_team: { id: number; name: string } | null
 }
+type FavoriteTeamRecommendation = {
+  matchId: number
+  opponentName: string
+  isHome: boolean
+  homeScore: number
+  awayScore: number
+  probability: number
+  // string = marcatore consigliato, null = segna ma non abbiamo dati marcatori,
+  // undefined = la squadra preferita non segna in questo risultato consigliato.
+  scorerSuggestion: string | null | undefined
+}
+
+type ManageableScorer = { id: number; name: string; goals: number; excluded: boolean }
+
 type FavoriteTeamData = {
   name: string
   logoUrl: string | null
@@ -38,6 +52,8 @@ type FavoriteTeamData = {
   upcoming: FavoriteTeamMatch[]
   recentForm: FavoriteTeamFormMatch[]
   teamId: number
+  nextMatchRecommendation: FavoriteTeamRecommendation | null
+  manageableScorers: ManageableScorer[]
 }
 
 export default async function DashboardPage({
@@ -183,6 +199,50 @@ export default async function DashboardPage({
         .limit(5),
     ])
 
+    let nextMatchRecommendation: FavoriteTeamRecommendation | null = null
+    const nextMatch = (upcoming as unknown as FavoriteTeamMatch[] | null)?.[0]
+    if (nextMatch) {
+      const [{ data: matchSides }, { data: prediction }, { data: topScorer }] = await Promise.all([
+        supabase.from('matches').select('home_team_id, away_team_id').eq('id', nextMatch.id).single(),
+        supabase
+          .from('predictions')
+          .select('top_scores')
+          .eq('match_id', nextMatch.id)
+          .order('computed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('player_scorers')
+          .select('name')
+          .eq('team_id', teamId)
+          .eq('excluded', false)
+          .order('goals', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+      const topScore = (prediction?.top_scores as { home: number; away: number; probability: number }[] | undefined)?.[0]
+      if (matchSides && topScore) {
+        const isHome = matchSides.home_team_id === teamId
+        const teamGoals = isHome ? topScore.home : topScore.away
+        nextMatchRecommendation = {
+          matchId: nextMatch.id,
+          opponentName: (isHome ? nextMatch.away_team?.name : nextMatch.home_team?.name) ?? '—',
+          isHome,
+          homeScore: topScore.home,
+          awayScore: topScore.away,
+          probability: topScore.probability,
+          scorerSuggestion: teamGoals > 0 ? (topScorer?.name ?? null) : undefined,
+        }
+      }
+    }
+
+    const { data: manageableScorers } = await supabase
+      .from('player_scorers')
+      .select('id, name, goals, excluded')
+      .eq('team_id', teamId)
+      .order('goals', { ascending: false })
+      .limit(8)
+
     if (team) {
       favoriteTeamData = {
         name: team.name,
@@ -191,6 +251,8 @@ export default async function DashboardPage({
         upcoming: (upcoming as unknown as FavoriteTeamMatch[]) ?? [],
         recentForm: (recentForm as unknown as FavoriteTeamFormMatch[]) ?? [],
         teamId,
+        nextMatchRecommendation,
+        manageableScorers: (manageableScorers as ManageableScorer[] | null) ?? [],
       }
     }
   }
@@ -241,7 +303,7 @@ export default async function DashboardPage({
           </div>
         </header>
 
-        <FavoriteTeamSection allTeams={allTeams ?? []} favoriteTeam={favoriteTeamData} />
+        <FavoriteTeamSection allTeams={allTeams ?? []} favoriteTeam={favoriteTeamData} isAdmin={profile?.role === 'admin'} />
 
         {roundSummary?.summary_text && (
           <div className="mb-6 rounded-lg border border-border bg-surface p-5">

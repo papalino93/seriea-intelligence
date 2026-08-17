@@ -75,6 +75,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const homeId = m.home_team?.id
   const awayId = m.away_team?.id
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: viewerProfile } = user
+    ? await supabase.from('profiles').select('favorite_team_id').eq('id', user.id).single()
+    : { data: null }
+  const favoriteTeamId = viewerProfile?.favorite_team_id ?? null
+
   const { data: prediction } = await supabase
     .from('predictions')
     .select('home_win, draw, away_win, over_2_5, under_2_5, btts_yes, btts_no, top_scores, model_version')
@@ -129,6 +137,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           .from('player_scorers')
           .select('name, goals, played_matches')
           .eq('team_id', homeId)
+          .eq('excluded', false)
           .order('goals', { ascending: false })
           .limit(5)
       : { data: [] as Scorer[] },
@@ -137,6 +146,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           .from('player_scorers')
           .select('name, goals, played_matches')
           .eq('team_id', awayId)
+          .eq('excluded', false)
           .order('goals', { ascending: false })
           .limit(5)
       : { data: [] as Scorer[] },
@@ -185,7 +195,19 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
         )}
 
         {prediction ? (
-          <PredictionSection prediction={prediction as unknown as Prediction} />
+          <>
+            <PredictionSection prediction={prediction as unknown as Prediction} />
+            <RecommendedScoreSection
+              prediction={prediction as unknown as Prediction}
+              homeTeamId={homeId ?? null}
+              awayTeamId={awayId ?? null}
+              homeTeamName={m.home_team?.name ?? 'squadra casa'}
+              awayTeamName={m.away_team?.name ?? 'squadra trasferta'}
+              homeScorers={(homeScorers.data as Scorer[] | null) ?? []}
+              awayScorers={(awayScorers.data as Scorer[] | null) ?? []}
+              favoriteTeamId={favoriteTeamId}
+            />
+          </>
         ) : (
           m.status === 'scheduled' && (
             <p className="mt-8 font-mono text-xs text-text-secondary">
@@ -496,6 +518,83 @@ function PredictionSection({ prediction: p }: { prediction: Prediction }) {
         Probabilità stimate da un modello statistico (Dixon-Coles) sui risultati storici reali, non
         un pronostico garantito — vedi documento di progettazione.
       </p>
+    </div>
+  )
+}
+
+/**
+ * Risultato esatto consigliato, sempre visibile in pagina (non solo dentro
+ * il commento AI). Il marcatore condizionato viene mostrato SOLO per la
+ * squadra preferita di chi guarda la pagina — per le altre ci fermiamo al
+ * risultato esatto. Motivo: non abbiamo una fonte dati per infortuni/
+ * squalifiche, quindi un nome di marcatore può risultare sbagliato (es. un
+ * giocatore già ceduto); per la squadra preferita un admin può correggerlo a
+ * mano escludendo il giocatore, per le altre no — meglio non esporre un dato
+ * che potremmo sbagliare.
+ */
+function RecommendedScoreSection({
+  prediction: p,
+  homeTeamId,
+  awayTeamId,
+  homeTeamName,
+  awayTeamName,
+  homeScorers,
+  awayScorers,
+  favoriteTeamId,
+}: {
+  prediction: Prediction
+  homeTeamId: number | null
+  awayTeamId: number | null
+  homeTeamName: string
+  awayTeamName: string
+  homeScorers: Scorer[]
+  awayScorers: Scorer[]
+  favoriteTeamId: number | null
+}) {
+  const topScore = p.top_scores?.[0]
+  if (!topScore) return null
+
+  const showHomeScorer = favoriteTeamId != null && favoriteTeamId === homeTeamId && topScore.home > 0
+  const showAwayScorer = favoriteTeamId != null && favoriteTeamId === awayTeamId && topScore.away > 0
+
+  return (
+    <div className="mt-8">
+      <h2 className="font-display text-sm text-text-secondary">Consigliato per questa partita</h2>
+      <div className="mt-3 rounded-lg border border-accent-pitch/40 bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <span className="rounded-full border border-accent-pitch/60 px-2 py-0.5 font-mono text-xs text-accent-pitch">
+            RISULTATO ESATTO CONSIGLIATO
+          </span>
+          <span className="font-display text-lg">
+            {topScore.home}-{topScore.away}{' '}
+            <span className="font-mono text-xs text-accent-gold">{(topScore.probability * 100).toFixed(1)}%</span>
+          </span>
+        </div>
+        {(showHomeScorer || showAwayScorer) && (
+          <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 font-mono text-xs sm:grid-cols-2">
+            {showHomeScorer && (
+              <ScorerSuggestionRow teamName={homeTeamName} suggestion={homeScorers[0]?.name ?? null} />
+            )}
+            {showAwayScorer && (
+              <ScorerSuggestionRow teamName={awayTeamName} suggestion={awayScorers[0]?.name ?? null} />
+            )}
+          </div>
+        )}
+      </div>
+      <p className="mt-2 font-mono text-xs text-text-secondary">
+        {favoriteTeamId != null
+          ? 'Il marcatore è mostrato solo per la tua squadra preferita, e solo se il risultato consigliato prevede un suo gol — probabilità stimata, non garantita.'
+          : 'Imposta una squadra preferita in dashboard per vedere anche il marcatore consigliato quando gioca lei.'}
+      </p>
+    </div>
+  )
+}
+
+function ScorerSuggestionRow({ teamName, suggestion }: { teamName: string; suggestion: string | null }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-text-secondary">{teamName}</span>
+      <span className="text-text-primary">{suggestion ?? 'dato non disponibile'}</span>
     </div>
   )
 }

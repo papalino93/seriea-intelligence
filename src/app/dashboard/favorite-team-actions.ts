@@ -24,3 +24,28 @@ export async function setFavoriteTeam(teamId: number | null) {
   revalidatePath('/dashboard')
   return { ok: true }
 }
+
+/**
+ * Esclude/reinclude manualmente un giocatore dai marcatori consigliati (es.
+ * infortunio o squalifica saputa dalle notizie) — non esiste una fonte dati
+ * gratuita per infortuni, quindi questo è l'unico modo onesto di tenerne
+ * conto senza inventare dati. Solo admin: la stessa esclusione vale per
+ * tutti gli utenti che seguono quella squadra.
+ */
+export async function toggleScorerExclusion(playerId: number, excluded: boolean) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'non autorizzato' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return { error: 'richiede ruolo admin' }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('player_scorers').update({ excluded }).eq('id', playerId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard')
+  return { ok: true }
+}

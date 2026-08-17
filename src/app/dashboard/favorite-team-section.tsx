@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { setFavoriteTeam } from './favorite-team-actions'
+import { setFavoriteTeam, toggleScorerExclusion } from './favorite-team-actions'
 
 type Team = { id: number; name: string }
 type FavoriteTeamMatch = { id: number; kickoff_at: string; home_team: { name: string } | null; away_team: { name: string } | null }
@@ -15,6 +15,16 @@ type FavoriteTeamFormMatch = {
   home_team: { id: number; name: string } | null
   away_team: { id: number; name: string } | null
 }
+type FavoriteTeamRecommendation = {
+  matchId: number
+  opponentName: string
+  isHome: boolean
+  homeScore: number
+  awayScore: number
+  probability: number
+  scorerSuggestion: string | null | undefined
+}
+type ManageableScorer = { id: number; name: string; goals: number; excluded: boolean }
 type FavoriteTeamData = {
   name: string
   logoUrl: string | null
@@ -22,16 +32,21 @@ type FavoriteTeamData = {
   upcoming: FavoriteTeamMatch[]
   recentForm: FavoriteTeamFormMatch[]
   teamId: number
+  nextMatchRecommendation: FavoriteTeamRecommendation | null
+  manageableScorers: ManageableScorer[]
 }
 
 export default function FavoriteTeamSection({
   allTeams,
   favoriteTeam,
+  isAdmin,
 }: {
   allTeams: Team[]
   favoriteTeam: FavoriteTeamData | null
+  isAdmin: boolean
 }) {
   const [saving, setSaving] = useState(false)
+  const [togglingId, setTogglingId] = useState<number | null>(null)
   const router = useRouter()
 
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -39,6 +54,13 @@ export default function FavoriteTeamSection({
     const value = e.target.value ? Number(e.target.value) : null
     await setFavoriteTeam(value)
     setSaving(false)
+    router.refresh()
+  }
+
+  async function handleToggleExclusion(playerId: number, currentlyExcluded: boolean) {
+    setTogglingId(playerId)
+    await toggleScorerExclusion(playerId, !currentlyExcluded)
+    setTogglingId(null)
     router.refresh()
   }
 
@@ -73,6 +95,65 @@ export default function FavoriteTeamSection({
               )}
             </div>
           </div>
+
+          {favoriteTeam.nextMatchRecommendation && (
+            <div className="mt-4 rounded-lg border border-accent-pitch/40 bg-bg p-3">
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <span className="font-mono text-xs text-text-secondary">
+                  Consigliato · {favoriteTeam.nextMatchRecommendation.isHome ? 'in casa' : 'in trasferta'} vs{' '}
+                  {favoriteTeam.nextMatchRecommendation.opponentName}
+                </span>
+                <Link
+                  href={`/dashboard/match/${favoriteTeam.nextMatchRecommendation.matchId}`}
+                  className="font-mono text-xs text-accent-pitch underline"
+                >
+                  dettagli →
+                </Link>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-display text-lg">
+                  {favoriteTeam.nextMatchRecommendation.homeScore}-{favoriteTeam.nextMatchRecommendation.awayScore}{' '}
+                  <span className="font-mono text-xs text-accent-gold">
+                    {(favoriteTeam.nextMatchRecommendation.probability * 100).toFixed(1)}%
+                  </span>
+                </span>
+                <span className="font-mono text-xs text-text-secondary">
+                  {favoriteTeam.nextMatchRecommendation.scorerSuggestion === undefined
+                    ? `${favoriteTeam.name} non segna in questo risultato`
+                    : `marcatore ${favoriteTeam.name}: ${favoriteTeam.nextMatchRecommendation.scorerSuggestion ?? 'dato non disponibile'}`}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {isAdmin && favoriteTeam.manageableScorers.length > 0 && (
+            <div className="mt-4 rounded-lg border border-border bg-bg p-3">
+              <p className="font-mono text-xs text-text-secondary">
+                Marcatori {favoriteTeam.name} — escludi chi è infortunato/squalificato
+              </p>
+              <div className="mt-2 space-y-1">
+                {favoriteTeam.manageableScorers.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between gap-2 font-mono text-xs">
+                    <span className={s.excluded ? 'text-text-secondary line-through' : 'text-text-primary'}>
+                      {s.name} <span className="text-text-secondary">({s.goals} gol)</span>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={togglingId === s.id}
+                      onClick={() => handleToggleExclusion(s.id, s.excluded)}
+                      className={`rounded-md border px-2 py-0.5 text-[10px] disabled:opacity-50 ${
+                        s.excluded
+                          ? 'border-accent-pitch/60 text-accent-pitch hover:bg-accent-pitch/10'
+                          : 'border-accent-danger/40 text-accent-danger hover:bg-accent-danger/10'
+                      }`}
+                    >
+                      {s.excluded ? 'reincludi' : 'escludi'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

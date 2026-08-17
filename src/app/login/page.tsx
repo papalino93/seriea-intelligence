@@ -7,15 +7,31 @@ import { createClient } from '@/lib/supabase/client'
 type Step = 'email' | 'code'
 type Status = 'idle' | 'loading' | 'error'
 
+// Traduce i messaggi noti di Supabase Auth in italiano comprensibile — il
+// messaggio grezzo (es. "For security purposes, you can only request this
+// after 42 seconds") altrimenti arriva in inglese e senza contesto.
+function friendlyAuthError(raw: string): string {
+  if (/after \d+ seconds?/i.test(raw)) {
+    return 'Hai richiesto un codice da poco: aspetta qualche secondo prima di richiederne un altro.'
+  }
+  if (/signups? not allowed|user not found|otp not found|otp expired/i.test(raw)) {
+    return 'Questa email non risulta invitata, oppure il codice è scaduto — richiedine uno nuovo o contatta l’admin.'
+  }
+  if (/invalid|token/i.test(raw)) {
+    return 'Codice errato o scaduto — controlla di averlo copiato bene, oppure richiedine uno nuovo.'
+  }
+  return raw
+}
+
 export default function LoginPage() {
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [status, setStatus] = useState<Status>('idle')
+  const [errorMessage, setErrorMessage] = useState('')
   const router = useRouter()
 
-  async function handleSendCode(e: FormEvent) {
-    e.preventDefault()
+  async function sendCode() {
     setStatus('loading')
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
@@ -25,10 +41,17 @@ export default function LoginPage() {
     })
     if (error) {
       setStatus('error')
+      setErrorMessage(friendlyAuthError(error.message))
       return
     }
     setStatus('idle')
+    setErrorMessage('')
     setStep('code')
+  }
+
+  function handleSendCode(e: FormEvent) {
+    e.preventDefault()
+    void sendCode()
   }
 
   async function handleVerifyCode(e: FormEvent) {
@@ -38,6 +61,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
     if (error) {
       setStatus('error')
+      setErrorMessage(friendlyAuthError(error.message))
       return
     }
     router.push('/dashboard')
@@ -113,6 +137,15 @@ export default function LoginPage() {
 
             <button
               type="button"
+              disabled={status === 'loading'}
+              onClick={() => void sendCode()}
+              className="mt-3 w-full font-mono text-xs text-text-secondary underline disabled:opacity-50"
+            >
+              non arrivato? rinvia codice
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 setStep('email')
                 setCode('')
@@ -126,9 +159,7 @@ export default function LoginPage() {
         )}
 
         {status === 'error' && (
-          <p className="mt-4 font-mono text-xs text-accent-danger">
-            Qualcosa è andato storto. Riprova o contatta l&apos;admin.
-          </p>
+          <p className="mt-4 font-mono text-xs text-accent-danger">{errorMessage || 'Qualcosa è andato storto. Riprova o contatta l’admin.'}</p>
         )}
       </div>
     </main>
